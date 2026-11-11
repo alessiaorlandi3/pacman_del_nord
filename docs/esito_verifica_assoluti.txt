@@ -1,0 +1,139 @@
+OK       RF2 nord: nessun vicolo cieco -> 0 vicoli
+OK       RF2 nord: tutte le celle raggiungibili
+OK       RF3 nord: bordi aperti sulle righe del tunnel
+OK       Partenze nord: giocatore e fantasma su celle libere
+OK       RF2 isole_fiumi: nessun vicolo cieco -> 0 vicoli
+OK       RF2 isole_fiumi: tutte le celle raggiungibili
+OK       RF3 isole_fiumi: bordi aperti sulle righe del tunnel
+OK       Partenze isole_fiumi: giocatore e fantasma su celle libere
+OK       RF2 valle: nessun vicolo cieco -> 0 vicoli
+OK       RF2 valle: tutte le celle raggiungibili
+OK       RF3 valle: bordi aperti sulle righe del tunnel
+OK       Partenze valle: giocatore e fantasma su celle libere
+OK       RF2 roccia: nessun vicolo cieco -> 0 vicoli
+OK       RF2 roccia: tutte le celle raggiungibili
+OK       RF3 roccia: bordi aperti sulle righe del tunnel
+OK       Partenze roccia: giocatore e fantasma su celle libere
+OK       RF2 altopiano: nessun vicolo cieco -> 0 vicoli
+OK       RF2 altopiano: tutte le celle raggiungibili
+OK       RF3 altopiano: bordi aperti sulle righe del tunnel
+OK       Partenze altopiano: giocatore e fantasma su celle libere
+OK       RF2 tempesta: nessun vicolo cieco -> 0 vicoli
+OK       RF2 tempesta: tutte le celle raggiungibili
+OK       RF3 tempesta: bordi aperti sulle righe del tunnel
+OK       Partenze tempesta: giocatore e fantasma su celle libere
+OK       RF2 dorne: nessun vicolo cieco -> 0 vicoli
+OK       RF2 dorne: tutte le celle raggiungibili
+OK       RF3 dorne: bordi aperti sulle righe del tunnel
+OK       Partenze dorne: giocatore e fantasma su celle libere
+OK       RF2 trono: nessun vicolo cieco -> 0 vicoli
+OK       RF2 trono: tutte le celle raggiungibili
+OK       RF3 trono: bordi aperti sulle righe del tunnel
+OK       Partenze trono: giocatore e fantasma su celle libere
+OK       RNF2 stessa posizione dopo 2 s con 120, 60 e 20 FPS -> [[3,9],[3,9],[3,9]]
+OK       RF3 chi esce a sinistra rientra a destra sulla stessa riga
+OK       Assoluti: "giù" porta verso il basso (2) da una cella con sbocco -> direzione 2
+OK       Assoluti: svolta impossibile = in attesa, si continua dritto
+OK       Assoluti: la freccia opposta inverte subito la marcia -> direzione 3
+OK       Giocatore bloccato contro un muro: il comando opposto lo fa tornare indietro -> x 2.30 dir 3
+OK       RF5 incrocio frontale in corridoio: contatto rilevato
+OK       Fantasma raggiunge un giocatore fermo entro 30 s -> 16.5 s
+OK       Cibo contato dal labirinto (nessun numero scritto a mano) -> 132 pezzi
+OK       Sconfitta a 0 vite e riavvio con INVIO
+OK       RF6 nord: 4 sfere di potenziamento sul percorso
+OK       RF6 isole_fiumi: 4 sfere di potenziamento sul percorso
+OK       RF6 valle: 4 sfere di potenziamento sul percorso
+OK       RF6 roccia: 4 sfere di potenziamento sul percorso
+OK       RF6 altopiano: 4 sfere di potenziamento sul percorso
+OK       RF6 tempesta: 4 sfere di potenziamento sul percorso
+OK       RF6 dorne: 4 sfere di potenziamento sul percorso
+OK       RF6 trono: 4 sfere di potenziamento sul percorso
+OK       RF6 raccogliere la sfera attiva il potere e spaventa i fantasmi -> potere 5.8
+OK       RF6 con il potere, toccare un fantasma lo mangia (+200) senza perdere vite -> punti 200
+OK       RF6 finito il potere i fantasmi tornano pericolosi
+OK       RF6 un fantasma spaventato si allontana dal giocatore -> 8 -> 11 celle
+OK       RF4 "insegue" punta alla cella del giocatore
+OK       RF4 "anticipa" punta più avanti, lungo la direzione del giocatore -> cella (3,1)
+OK       RF4 i tre fantasmi hanno comportamenti diversi
+OK       RF4 "casuale" non fa inversioni inutili -> 0 su 500
+OK       Il secondo fantasma resta a casa per 8 s
+OK       Un fantasma ancora a casa non toglie vite
+OK       Partenza nord: giocatore a 12+ celle dai fantasmi -> 25 celle
+OK       Partenza nord: il giocatore parte allontanandosi dai fantasmi
+OK       Partenza isole_fiumi: giocatore a 12+ celle dai fantasmi -> 16 celle
+OK       Partenza isole_fiumi: il giocatore parte allontanandosi dai fantasmi
+OK       Partenza valle: giocatore a 12+ celle dai fantasmi -> 23 celle
+OK       Partenza valle: il giocatore parte allontanandosi dai fantasmi
+OK       Partenza roccia: giocatore a 12+ celle dai fantasmi -> 17 celle
+OK       Partenza roccia: il giocatore parte allontanandosi dai fantasmi
+OK       Partenza altopiano: giocatore a 12+ celle dai fantasmi -> 15 celle
+OK       Partenza altopiano: il giocatore parte allontanandosi dai fantasmi
+OK       Partenza tempesta: giocatore a 12+ celle dai fantasmi -> 19 celle
+OK       Partenza tempesta: il giocatore parte allontanandosi dai fantasmi
+OK       Partenza dorne: giocatore a 12+ celle dai fantasmi -> 19 celle
+OK       Partenza dorne: il giocatore parte allontanandosi dai fantasmi
+OK       Partenza trono: giocatore a 12+ celle dai fantasmi -> 16 celle
+OK       Partenza trono: il giocatore parte allontanandosi dai fantasmi
+OK       Fasi: si parte dalla dispersione
+OK       Fasi: dopo la dispersione c'è la caccia
+OK       Fasi: poi si ricomincia dalla dispersione
+OK       Fasi: in dispersione ogni fantasma va al proprio angolo
+OK       Fasi: in caccia "insegue" torna sul giocatore
+OK       RF12 ci sono 8 livelli: uno per regno più il Trono
+OK       RF12 ogni livello ha un labirinto diverso dagli altri
+OK       RF7 il livello 1 è il Nord, senza tempo limite
+OK       RF8 sono speciali solo il livello 4 e l'8, e solo loro hanno il tempo limite
+OK       RF7 nei livelli normali i fantasmi diventano più veloci -> 2.40 2.50 2.60 2.90 2.80 2.90 3.00 3.20
+OK       RF8 il secondo livello speciale è più difficile del primo (più veloce, meno tempo) -> 2.90 -> 3.20, 150 s -> 140 s
+OK       La velocità dei fantasmi non supera mai il massimo
+OK       RF7 ritardi dei fantasmi e potere: mai sotto i minimi
+OK       Solo l'ultimo labirinto ha il Trono
+OK       Gli angoli della dispersione sono celle libere in tutti i labirinti
+OK       RF7 finito il cibo si passa al livello 2, con punti e vite conservati
+OK       RF8 il livello 4 ha due tunnel e il tempo limite
+OK       RF8 tempo scaduto = si perde una vita e il tempo riparte
+OK       Trono: la cella è libera e senza cibo
+OK       Trono chiuso: finché c'è cibo, raggiungerlo non fa vincere
+OK       Trono: finito il cibo si apre, la partita continua e i fantasmi si disperdono
+OK       Trono aperto: raggiungerlo fa vincere la partita
+OK       Dal menu i tasti 1-8 fanno partire dal livello scelto
+OK       I tasti numerici non fanno nulla durante la partita
+OK       RF9 il record salvato viene letto all'avvio
+OK       RF9 un punteggio più basso non cambia il record
+OK       RF9 un punteggio più alto diventa il nuovo record e viene salvato
+OK       RF9 il record resta anche dopo aver ricaricato la pagina
+OK       RF9 partendo da un livello avanzato il record non cambia
+OK       RF9 se il browser non può salvare, il gioco funziona lo stesso
+OK       RF13 ogni regno ha la sua musica
+OK       RF13 melodie: durate giuste, note nella scala e nel registro, ritmi coerenti
+OK       RF13 le musiche dei regni si distinguono (scala, tempo, strumento)
+OK       Formula delle note: il La4 è a 440 Hz e un'ottava sopra è il doppio
+OK       Effetti: il "tic" del cibo è spento, per non coprire la musica
+OK       Effetti: anche il corno della caccia è spento (i tamburi bastano)
+OK       Effetti importanti: suonano e abbassano la musica
+OK       Con l'audio spento nessun effetto viene programmato
+OK       Evento "inizioLivello" all'avvio di un livello
+OK       Evento "cibo" quando si mangia
+OK       Evento "potenziamento" quando si prende la sfera
+OK       Evento "fantasmaMangiato"
+OK       Evento "vitaPersa" al contatto con un fantasma
+OK       Evento "sconfitta" quando finiscono le vite
+OK       Evento "livelloCompletato" e poi "inizioLivello" del successivo -> livelloCompletato,inizioLivello
+OK       Eventi "troneAperto" e poi "vittoria" -> troneAperto,vittoria
+OK       Evento "caccia" quando comincia la fase di caccia
+OK       Livello speciale: un "tick" al secondo negli ultimi 10 secondi -> 10 tick
+OK       Gli eventi non letti non si accumulano all'infinito
+OK       Simulazione casuale di 5 minuti: sempre su celle libere, nessun errore -> 5 partite finite
+OK       RF19 atmosfera per regno (nebbia, aria, texture) e torce su muri affacciati ai corridoi -> torce per livello nord:5 isole_fiumi:11 valle:7 roccia:6 altopiano:0 tempesta:11 dorne:0 trono:12
+OK       RF17 modelli 3D: dati completi e validi (5 modelli) -> scheletro 1810 triangoli, pipistrello 1046 triangoli, drago 1344 triangoli, slime 1440 triangoli, cavaliere 2144 triangoli
+OK       RF18 svolta prenotata scade dopo 1 s (solo comandi relativi) -> saltata (comandi assoluti)
+OK       RF20 prova: nessuna vita persa nemmeno col contatto, tempo fermo, E apre il Trono -> vite 3, Trono aperto true
+OK       RF20 prova: il record non si salva
+OK       RF20 senza prova il contatto fa perdere una vita
+OK       RF16 guida svolte: sinistra+avanti+destra+indietro = strade della cella (4424 casi)
+OK       RF15 fantasmi più lenti nella vista 3D e invariati in 2D -> 2.40 -> 1.80 celle/s
+OK       RF14 camera 3D: dietro al personaggio per ogni direzione, sopra il pavimento
+OK       RF14 rotazione camera: verso più breve e arriva all'angolo giusto
+OK       RF14 coordinate 3D coerenti con la mappa
+
+Tutte le prove superate.
