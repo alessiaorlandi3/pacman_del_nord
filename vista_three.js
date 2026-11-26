@@ -16,14 +16,14 @@ const CONFIGURAZIONE_MODELLI = {
   pipistrello: { fronte: Math.PI / 2, altezza: 0.8,  larghezza: 1.0,  quota: 0.28, volo: true },
   drago:       { fronte: Math.PI / 2, altezza: 1.0,  larghezza: 1.0,  quota: 0.15 },
   slime:       { fronte: 0,           altezza: 0.6,  larghezza: 0.85, quota: 0, gelatina: true },
-  cavaliere:   { fronte: Math.PI / 2, altezza: 0.95, larghezza: 0.9,  quota: 0 }
+  cavaliere:   { fronte: Math.PI / 2, altezza: 0.95, larghezza: 0.9,  quota: 0, tunica: [0.12, 0.37, 0.18] }   // tunica: verde bosco al posto del verde fluo del modello
 };
 
-// Quale modello usa ogni comportamento (nell'ultimo livello l'inseguitore è il drago).
-function modelloPerFantasma(comportamento, tema) {
-  if (comportamento === 'insegue') return tema === 'trono' ? 'drago' : 'scheletro';
+// Quale modello usa ogni comportamento, in tutti i livelli: l'inseguitore è il drago, chi anticipa il pipistrello, chi va a caso lo scheletro.
+function modelloPerFantasma(comportamento) {
+  if (comportamento === 'insegue') return 'drago';
   if (comportamento === 'anticipa') return 'pipistrello';
-  return 'slime';
+  return 'scheletro';
 }
 
 class VistaThree {
@@ -33,6 +33,7 @@ class VistaThree {
     this.altezza = altezza;
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(RISOLUZIONE_3D);
+    if (OMBRE_REALI) { this.renderer.shadowMap.enabled = true; this.renderer.shadowMap.type = THREE.PCFSoftShadowMap; }
     this.renderer.setSize(larghezza, altezza);
     this.scena = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(60, larghezza / altezza, 0.1, 60);
@@ -46,6 +47,15 @@ class VistaThree {
     this.luceCielo = new THREE.HemisphereLight(0xb8c4ff, 0x20202a, 0.85);
     this.luceSole = new THREE.DirectionalLight(0xffffff, 0.55);
     this.luceSole.position.set(-3, 8, 4);
+    if (OMBRE_REALI) {                       // il "sole" proietta le ombre; segue il giocatore e copre 14 x 14 celle attorno a lui
+      const s = this.luceSole.shadow;
+      s.mapSize.set(2048, 2048);
+      s.camera.left = -7; s.camera.right = 7; s.camera.top = 7; s.camera.bottom = -7; s.camera.near = 1; s.camera.far = 25;
+      s.camera.updateProjectionMatrix();
+      s.bias = -0.0004; s.normalBias = 0.03; s.radius = 2;
+      this.luceSole.castShadow = true;
+      this.scena.add(this.luceSole.target);
+    }
     this.torcia = new THREE.PointLight(0xffc880, 1.3, 7, 2);   // la lanterna del viandante
     this.scena.add(this.luceCielo, this.luceSole, this.torcia);
     // Due luci delle torce a muro: sempre le stesse due luci, spostate sulle torce più vicine (così la scena non va ricompilata).
@@ -55,6 +65,32 @@ class VistaThree {
     this.lampo = 0; this.prossimoLampo = 5;
     this.luceBase = 0.85;
     this.d = new THREE.Object3D();      // di servizio, per calcolare le matrici delle istanze
+  }
+
+  // Ombra morbida: un cerchio scuro che sfuma ai bordi (si disegna una volta sola).
+  static texturaOmbra() {
+    if (VistaThree._ombra) return VistaThree._ombra;
+    const cv = document.createElement('canvas'); cv.width = cv.height = 64;
+    const c = cv.getContext('2d');
+    const g = c.createRadialGradient(32, 32, 2, 32, 32, 31);
+    g.addColorStop(0, 'rgba(0,0,0,0.55)'); g.addColorStop(0.6, 'rgba(0,0,0,0.3)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = g; c.fillRect(0, 0, 64, 64);
+    VistaThree._ombra = new THREE.CanvasTexture(cv);
+    return VistaThree._ombra;
+  }
+
+  // Cambia un colore dei vertici del modello (da → a, valori 0..255 / 0..1) in tutti i pezzi.
+  static ricolora(parti, da, a) {
+    if (!parti || !a) return;
+    for (const p of Object.values(parti)) {
+      const attr = p.geometry && p.geometry.attributes && p.geometry.attributes.color;
+      if (!attr || !attr.array) continue;
+      const v = attr.array;
+      for (let i = 0; i + 2 < v.length; i += 3) {
+        if (Math.abs(v[i] - da[0] / 255) < 0.02 && Math.abs(v[i + 1] - da[1] / 255) < 0.02 && Math.abs(v[i + 2] - da[2] / 255) < 0.02) { v[i] = a[0]; v[i + 1] = a[1]; v[i + 2] = a[2]; }
+      }
+      attr.needsUpdate = true;
+    }
   }
 
   static colore(c, fattore = 1) {
@@ -97,6 +133,7 @@ class VistaThree {
     const pavimento = new THREE.Mesh(new THREE.PlaneGeometry(COLONNE + 16, RIGHE + 16), new THREE.MeshStandardMaterial({ color: amb.suolo ? VistaThree.colore(amb.suolo) : VistaThree.colore(tema.sfondo, 1.6), roughness: 1 }));
     pavimento.rotation.x = -Math.PI / 2;
     pavimento.position.set(COLONNE / 2, 0, RIGHE / 2);
+    if (OMBRE_REALI) { muro.castShadow = muro.receiveShadow = true; cima.castShadow = cima.receiveShadow = true; piastrelle.receiveShadow = true; pavimento.receiveShadow = true; }
     for (const m of [muro, cima, piastrelle]) m.frustumCulled = false;   // le istanze non hanno un riquadro proprio in questa versione
     gruppo.add(pavimento, piastrelle, muro, cima);
 
@@ -130,8 +167,8 @@ class VistaThree {
     this.scena.background = VistaThree.colore(coloreNebbia);
     this.scena.fog = new THREE.Fog(VistaThree.colore(coloreNebbia), vicino, lontano);
     this.luceCielo.color.setHex(amb.cielo[0]); this.luceCielo.groundColor.setHex(amb.cielo[1]);
-    this.luceBase = amb.cielo[2]; this.luceCielo.intensity = this.luceBase;
-    this.luceSole.color.setHex(amb.sole[0]); this.luceSole.intensity = amb.sole[1];
+    this.luceBase = amb.cielo[2] * (OMBRE_REALI ? 0.9 : 1); this.luceCielo.intensity = this.luceBase;
+    this.luceSole.color.setHex(amb.sole[0]); this.luceSole.intensity = amb.sole[1] * (OMBRE_REALI ? 1.35 : 1);   // con le ombre serve un po' più di luce diretta
     if (this.particelle) this.particelle.elimina(this.scena);
     this.particelle = new Particelle(this.scena, amb.particelle);
     this.ambiente = amb;
@@ -176,6 +213,114 @@ class VistaThree {
             foglia.scale.set(1, 0.12, 0.3); foglia.rotation.y = -k; foglia.rotation.z = -0.3;
           }
         }
+      }
+    } else if (amb.decor === 'nord') {
+      // Abeti innevati fuori dalle mura e mucchi di neve ai piedi dei muri nei corridoi.
+      const neve = mat([240, 246, 255], { roughness: 1 }), verdeScuro = mat([22, 54, 42]), tronco = mat([70, 50, 34]);
+      const cono1 = new THREE.ConeGeometry(0.75, 1.3, 9), cono2 = new THREE.ConeGeometry(0.58, 1.1, 9), cono3 = new THREE.ConeGeometry(0.4, 0.9, 9);
+      const velo1 = new THREE.ConeGeometry(0.6, 0.55, 9), velo2 = new THREE.ConeGeometry(0.45, 0.5, 9), velo3 = new THREE.ConeGeometry(0.3, 0.45, 9);
+      for (let i = 0; i < 16; i++) {
+        const a = i / 16 * Math.PI * 2 + rnd() * 0.3, s = 0.8 + rnd() * 0.6;
+        const x = COLONNE / 2 + Math.cos(a) * (COLONNE / 2 + 2.2 + rnd() * 2.2), z = RIGHE / 2 + Math.sin(a) * (RIGHE / 2 + 2.2 + rnd() * 2.2);
+        const abete = new THREE.Group();
+        const parte = (g, m, y) => { const p = new THREE.Mesh(g, m); p.position.y = y; abete.add(p); };
+        parte(new THREE.CylinderGeometry(0.1, 0.14, 0.7, 6), tronco, 0.35);
+        parte(cono1, verdeScuro, 1.25); parte(cono2, verdeScuro, 2.0); parte(cono3, verdeScuro, 2.7);
+        parte(velo1, neve, 1.45); parte(velo2, neve, 2.2); parte(velo3, neve, 2.88);     // neve sui rami
+        abete.position.set(x, 0, z); abete.scale.setScalar(s);
+        gruppo.add(abete);
+      }
+      const mucchio = new THREE.SphereGeometry(0.3, 8, 6);
+      for (const t of posizioniTorce(lab, 7, 2)) {                  // mucchi di neve ai piedi dei muri
+        const m = mesh(mucchio, neve, t.c + 0.5 + t.dc * 0.38, 0.03, t.r + 0.5 + t.dr * 0.38);
+        m.scale.set(1 + rnd() * 0.5, 0.4 + rnd() * 0.2, 1 + rnd() * 0.4);
+      }
+    } else if (amb.decor === 'isole') {
+      // Barili e casse nei corridoi; fuori dalle mura scogli neri e alberi di navi con la vela strappata, in mezzo al mare.
+      const legno = mat([100, 70, 42]), cerchio = mat([40, 40, 46], { metalness: 0.5 }), cassa = mat([84, 60, 38]), scoglio = mat([34, 40, 50], { roughness: 1 });
+      const vela = mat([188, 180, 160], { roughness: 1 }); vela.side = THREE.DoubleSide;
+      const barile = new THREE.CylinderGeometry(0.15, 0.15, 0.34, 10), anello = new THREE.TorusGeometry(0.152, 0.012, 4, 12);
+      const scatola = new THREE.BoxGeometry(0.3, 0.26, 0.3);
+      let k = 0;
+      for (const t of posizioniTorce(lab, 6, 2)) {
+        const x = t.c + 0.5 + t.dc * 0.34, z = t.r + 0.5 + t.dr * 0.34;
+        if (k++ % 3 === 2) { const c = mesh(scatola, cassa, x, 0.14, z); c.rotation.y = rnd(); }
+        else {
+          mesh(barile, legno, x, 0.18, z);
+          for (const y of [0.1, 0.26]) { const a = mesh(anello, cerchio, x, y, z); a.rotation.x = Math.PI / 2; }
+        }
+      }
+      const roccia = new THREE.IcosahedronGeometry(1, 0);
+      for (let i = 0; i < 14; i++) {                                // scogli
+        const a = i / 14 * Math.PI * 2 + rnd() * 0.3, d = 1.8 + rnd() * 2.6;
+        const x = COLONNE / 2 + Math.cos(a) * (COLONNE / 2 + d), z = RIGHE / 2 + Math.sin(a) * (RIGHE / 2 + d);
+        const s = 0.5 + rnd() * 0.9, m = mesh(roccia, scoglio, x, s * 0.35, z);
+        m.scale.set(s, s * (0.6 + rnd() * 0.6), s * (0.8 + rnd() * 0.5)); m.rotation.y = rnd() * 3;
+      }
+      for (let i = 0; i < 4; i++) {                                 // alberi di nave
+        const a = (i + 0.5) / 4 * Math.PI * 2, x = COLONNE / 2 + Math.cos(a) * (COLONNE / 2 + 5), z = RIGHE / 2 + Math.sin(a) * (RIGHE / 2 + 5);
+        mesh(new THREE.CylinderGeometry(0.07, 0.1, 4.2, 6), legno, x, 2.1, z);
+        const sbarra = mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.8, 5), legno, x, 3.5, z); sbarra.rotation.z = Math.PI / 2; sbarra.rotation.y = a;
+        const v = mesh(new THREE.PlaneGeometry(1.6, 1.4), vela, x, 2.8, z); v.rotation.y = a + Math.PI / 2; v.rotation.z = 0.08 * (i % 2 ? 1 : -1);
+      }
+    } else if (amb.decor === 'valle') {
+      // Guglie dolomitiche in lontananza, pini attorno alle mura, massi e fiori di montagna nei corridoi.
+      const dolomia = mat([214, 188, 176], { roughness: 1 }), neve = mat([244, 248, 255], { roughness: 1 }), pino = mat([28, 70, 44]), tronco = mat([84, 60, 40]);
+      const massoMat = mat([168, 160, 152], { roughness: 1 });
+      for (let i = 0; i < 9; i++) {                                 // guglie: coni irregolari a 5 lati con la punta innevata
+        const a = i / 9 * Math.PI * 2 + rnd() * 0.3, d = 7 + rnd() * 3.5, ht = 8 + rnd() * 6, r = 2 + rnd() * 1.6;
+        const x = COLONNE / 2 + Math.cos(a) * (COLONNE / 2 + d), z = RIGHE / 2 + Math.sin(a) * (RIGHE / 2 + d);
+        const g = new THREE.Group();
+        const corpo = new THREE.Mesh(new THREE.ConeGeometry(r, ht, 5), dolomia); corpo.position.y = ht / 2; g.add(corpo);
+        const punta = new THREE.Mesh(new THREE.ConeGeometry(r * 0.3, ht * 0.22, 5), neve); punta.position.y = ht * 0.9; g.add(punta);
+        g.position.set(x, 0, z); g.rotation.y = rnd() * 3; gruppo.add(g);
+      }
+      const cono1 = new THREE.ConeGeometry(0.6, 1.4, 8), cono2 = new THREE.ConeGeometry(0.46, 1.2, 8), cono3 = new THREE.ConeGeometry(0.3, 1.0, 8);
+      for (let i = 0; i < 18; i++) {                                // pini
+        const a = i / 18 * Math.PI * 2 + rnd() * 0.3, s = 0.9 + rnd() * 0.7;
+        const x = COLONNE / 2 + Math.cos(a) * (COLONNE / 2 + 2.0 + rnd() * 3), z = RIGHE / 2 + Math.sin(a) * (RIGHE / 2 + 2.0 + rnd() * 3);
+        const p = new THREE.Group();
+        const parte = (geo, m, y) => { const q = new THREE.Mesh(geo, m); q.position.y = y; p.add(q); };
+        parte(new THREE.CylinderGeometry(0.09, 0.13, 0.8, 6), tronco, 0.4);
+        parte(cono1, pino, 1.4); parte(cono2, pino, 2.1); parte(cono3, pino, 2.75);
+        p.position.set(x, 0, z); p.scale.setScalar(s); gruppo.add(p);
+      }
+      const masso = new THREE.IcosahedronGeometry(0.2, 0), petalo = new THREE.SphereGeometry(0.045, 6, 4);
+      const colori = [mat([246, 246, 240], { roughness: 1 }), mat([150, 110, 200], { roughness: 1 }), mat([240, 210, 70], { roughness: 1 })];
+      let k = 0;
+      for (const t of posizioniTorce(lab, 5, 4)) {                  // massi e ciuffi di fiori ai piedi dei muri
+        const x = t.c + 0.5 + t.dc * 0.36, z = t.r + 0.5 + t.dr * 0.36;
+        if (k++ % 3 === 0) { const m = mesh(masso, massoMat, x, 0.1, z); m.scale.set(1 + rnd() * 0.6, 0.7 + rnd() * 0.4, 1 + rnd() * 0.5); m.rotation.y = rnd() * 3; }
+        else { const col = colori[k % 3]; for (let j = 0; j < 4; j++) mesh(petalo, col, x + (rnd() - 0.5) * 0.22, 0.05 + rnd() * 0.05, z + (rnd() - 0.5) * 0.22); }
+      }
+    } else if (amb.decor === 'tempesta') {
+      // Stendardi gialli e neri strappati dal vento, pozzanghere, alberi spogli piegati e guglie nere fuori dalle mura.
+      const giallo = mat([214, 166, 38], { emissive: VistaThree.colore([214, 166, 38], 0.1) }), nero = mat([24, 22, 22]), legno = mat([52, 40, 32], { roughness: 1 });
+      const guglia = mat([34, 32, 36], { roughness: 1 });
+      const acqua = mat([70, 90, 120], { roughness: 0.05, metalness: 0.6 }); acqua.transparent = true; acqua.opacity = 0.7;
+      for (const t of posizioniTorce(lab, 7, 3)) {                  // stendardi: due strisce, la seconda più corta e storta (strappata)
+        const sx = t.dc !== 0, x = t.c + 0.5 + t.dc * 0.52, z = t.r + 0.5 + t.dr * 0.52;
+        const a = mesh(new THREE.BoxGeometry(sx ? 0.03 : 0.2, 0.7, sx ? 0.2 : 0.03), giallo, x - (sx ? 0 : 0.11), 0.72, z - (sx ? 0.11 : 0));
+        const b = mesh(new THREE.BoxGeometry(sx ? 0.03 : 0.2, 0.46, sx ? 0.2 : 0.03), nero, x + (sx ? 0 : 0.11), 0.6, z + (sx ? 0.11 : 0));
+        a.rotation.x = sx ? 0.08 : 0; b.rotation.z = sx ? 0 : 0.14; b.rotation.x = sx ? -0.12 : 0;
+      }
+      const pozza = new THREE.CircleGeometry(0.28, 14);
+      for (const t of posizioniTorce(lab, 9, 5)) {                  // pozzanghere
+        const p = mesh(pozza, acqua, t.c + 0.5 + t.dc * 0.3, 0.025, t.r + 0.5 + t.dr * 0.3);
+        p.rotation.x = -Math.PI / 2; p.scale.set(1 + rnd() * 0.7, 1 + rnd() * 0.4, 1); p.rotation.z = rnd() * 3;
+      }
+      for (let i = 0; i < 8; i++) {                                 // alberi spogli, tutti piegati dalla stessa parte (il vento)
+        const a = i / 8 * Math.PI * 2 + rnd() * 0.4, s = 0.8 + rnd() * 0.7;
+        const x = COLONNE / 2 + Math.cos(a) * (COLONNE / 2 + 2.5 + rnd() * 2.5), z = RIGHE / 2 + Math.sin(a) * (RIGHE / 2 + 2.5 + rnd() * 2.5);
+        const albero = new THREE.Group();
+        const tronco = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.12, 2.0, 5), legno); tronco.position.y = 1.0; albero.add(tronco);
+        for (let k = 0; k < 3; k++) { const r = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.05, 0.9, 4), legno); r.position.set(0.25, 1.4 + k * 0.25, 0); r.rotation.z = -1.0; r.rotation.y = k * 2.1; albero.add(r); }
+        albero.rotation.z = -0.28; albero.position.set(x, 0, z); albero.scale.setScalar(s); gruppo.add(albero);
+      }
+      for (let i = 0; i < 7; i++) {                                 // guglie nere di scogliera
+        const a = i / 7 * Math.PI * 2 + rnd() * 0.4, d = 5.5 + rnd() * 3, ht = 4 + rnd() * 5;
+        const x = COLONNE / 2 + Math.cos(a) * (COLONNE / 2 + d), z = RIGHE / 2 + Math.sin(a) * (RIGHE / 2 + d);
+        const m = mesh(new THREE.ConeGeometry(1 + rnd() * 1.2, ht, 5), guglia, x, ht / 2, z); m.rotation.y = rnd() * 3; m.rotation.z = (rnd() - 0.5) * 0.15;
       }
     } else if (amb.decor === 'castello') {
       // La grande sala: quattro muri alti attorno al labirinto, con colonne, finestre accese e stendardi.
@@ -275,20 +420,23 @@ class VistaThree {
     const interno = new THREE.Group();            // gira verso la direzione di marcia
     const verde = new THREE.MeshStandardMaterial({ color: VistaThree.colore(COLORE_GIOCATORE), roughness: 0.6, emissive: VistaThree.colore(COLORE_GIOCATORE, 0.12) });
     const scuro = new THREE.MeshStandardMaterial({ color: VistaThree.colore(COLORE_GIOCATORE, 0.5), roughness: 0.8, emissive: VistaThree.colore(COLORE_GIOCATORE, 0.06) });
-    const disco = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.04, 22), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-    disco.position.y = 0.02;
-    const anello = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.05, 22), new THREE.MeshBasicMaterial({ color: VistaThree.colore(COLORE_GIOCATORE) }));
-    anello.position.y = 0.03;
-    gruppo.add(disco, anello);
+    // Sotto i piedi: un'ombra morbida e un anello verde sottile che segnala il giocatore (al posto del disco pieno).
+    const ombra = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 0.95), new THREE.MeshBasicMaterial({ map: VistaThree.texturaOmbra(), transparent: true, depthWrite: false }));
+    ombra.rotation.x = -Math.PI / 2; ombra.position.y = 0.025;
+    const anello = new THREE.Mesh(new THREE.RingGeometry(0.33, 0.385, 40), new THREE.MeshBasicMaterial({ color: VistaThree.colore(COLORE_GIOCATORE), transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }));
+    anello.rotation.x = -Math.PI / 2; anello.position.y = 0.03;
+    gruppo.add(ombra, anello);
     const aggiungi = (geometria, materiale, x, y, z, sx = 1, sy = 1, sz = 1) => {
       const m = new THREE.Mesh(geometria, materiale);
-      m.position.set(x, y, z); m.scale.set(sx, sy, sz); interno.add(m); return m;
+      m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.castShadow = true; interno.add(m); return m;
     };
-    let modello = null, parti = null, altezzaTesta = 0.95;
+    let modello = null, parti = null, altezzaTesta = 0.95, scalaParti = 1, baseGamba = 0;
     if (typeof MODELLI !== 'undefined' && MODELLI.cavaliere) {
       const m = this.creaMesh('cavaliere');
       interno.add(m.modello);
-      modello = m.modello; parti = m.parti;
+      VistaThree.ricolora(m.parti, [31, 199, 41], CONFIGURAZIONE_MODELLI.cavaliere.tunica);
+      if (m.parti) Object.values(m.parti).forEach(p => { p.castShadow = true; });
+      modello = m.modello; parti = m.parti; scalaParti = m.scala; baseGamba = m.parti ? m.parti.gambaD.position.y : 0;
       altezzaTesta = CONFIGURAZIONE_MODELLI.cavaliere.altezza;
     } else {
       aggiungi(new THREE.CylinderGeometry(0.22, 0.26, 0.45, 14), verde, 0, 0.3, 0);                // corpo
@@ -297,22 +445,24 @@ class VistaThree {
       aggiungi(new THREE.SphereGeometry(0.04, 6, 4), new THREE.MeshBasicMaterial({ color: 0x111111 }), -0.08, 0.7, 0.18);
       aggiungi(new THREE.SphereGeometry(0.04, 6, 4), new THREE.MeshBasicMaterial({ color: 0x111111 }), 0.08, 0.7, 0.18);
     }
+    interno.rotation.order = 'YXZ';               // prima la direzione di marcia, poi inclinazioni in avanti e di lato
     gruppo.add(interno);
     // Cristallo verde che fluttua sopra la testa: si vede anche da dietro e da lontano.
     const cristallo = new THREE.Mesh(new THREE.OctahedronGeometry(0.09), new THREE.MeshBasicMaterial({ color: VistaThree.colore(COLORE_GIOCATORE) }));
     cristallo.position.y = altezzaTesta + 0.28;
     gruppo.add(cristallo);
-    return { gruppo, interno, modello, parti, cristallo, altezzaTesta, fronte: Math.PI / 2, angolo: 0, fase: 0, ampiezza: 0 };
+    return { gruppo, interno, modello, parti, cristallo, altezzaTesta, scalaParti, baseGamba, fronte: Math.PI / 2, angolo: 0, fase: 0, ampiezza: 0, virata: 0 };
   }
 
   // Un fantasma: modello 3D dei mostri + un anello colorato ai piedi (colore del regno, stesso della mappa 2D).
   creaFantasma(f, tema) {
-    const nome = modelloPerFantasma(f.comportamento, tema);
+    const nome = modelloPerFantasma(f.comportamento);
     const { modello, materiale, scala, conf } = this.creaMesh(nome);
     const interno = new THREE.Group();
     interno.add(modello);
-    const anello = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.03, 20), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-    anello.position.y = 0.015;
+    modello.castShadow = true;
+    const anello = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.36, 32), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide }));
+    anello.rotation.x = -Math.PI / 2; anello.position.y = 0.02;
     const gruppo = new THREE.Group();
     gruppo.add(anello, interno);
     this.scena.add(gruppo);
@@ -327,22 +477,40 @@ class VistaThree {
   }
 
   // Camminata del giocatore: braccia e gambe oscillano in opposizione mentre si muove, poi tornano ferme.
-  camminata(o, inMovimento, dt) {
+  // Il passo segue la velocità vera (più piano nel tunnel): i piedi non "scivolano". Oltre a gambe e braccia, il corpo
+  // rimbalza a ogni passo, si china in avanti, ruota un po' le spalle, solleva il piede che avanza e si inclina nelle curve.
+  camminata(o, inMovimento, dt, velocita) {
     o.ampiezza += ((inMovimento ? 1 : 0) - o.ampiezza) * Math.min(1, dt * 12);
-    if (inMovimento) o.fase += dt * VELOCITA_PASSO;
-    const s = Math.sin(o.fase) * o.ampiezza;
+    if (inMovimento) o.fase += dt * VELOCITA_PASSO * (velocita / VELOCITA_GIOCATORE);
+    const amp = o.ampiezza, s = Math.sin(o.fase) * amp, c = Math.cos(o.fase) * amp;
     if (o.parti) {
       o.parti.gambaD.rotation.x = s * 0.7;  o.parti.gambaS.rotation.x = -s * 0.7;     // gambe in opposizione
       o.parti.bracciaD.rotation.x = -s * 0.55; o.parti.bracciaS.rotation.x = s * 0.55;  // braccia opposte alle gambe
+      const sol = 0.08 / o.scalaParti;                                                  // altezza del piede sollevato (unità del modello)
+      o.parti.gambaD.position.y = o.baseGamba + sol * Math.max(0, -c);                  // la gamba che va avanti si piega e si alza
+      o.parti.gambaS.position.y = o.baseGamba + sol * Math.max(0, c);
+      o.parti.corpo.rotation.y = 0.08 * s;                                              // le spalle ruotano in controfase
     }
-    o.interno.position.y = 0.03 * Math.abs(Math.cos(o.fase)) * o.ampiezza;            // piccolo rimbalzo a ogni passo
-    o.interno.rotation.z = 0.03 * Math.sin(o.fase) * o.ampiezza;
+    const inclina = Math.max(-0.2, Math.min(0.2, o.virata * 0.25));                    // nelle curve si inclina verso l'interno
+    o.interno.position.y = 0.045 * Math.abs(Math.cos(o.fase)) * amp;                  // rimbalzo a ogni passo
+    o.interno.rotation.x = 0.1 * amp;                                                   // corre un po' chinato in avanti
+    o.interno.rotation.z = 0.03 * s + inclina * amp;
+  }
+
+  // La posizione disegnata segue quella del gioco con un piccolo ritardo (qualche centesimo di secondo): gli angoli
+  // delle curve diventano appena arrotondati e il movimento è più morbido. Se la distanza è grande (passaggio laterale,
+  // fantasma mangiato, nuovo livello) si salta direttamente.
+  seguiPosizione(o, x, z, dt, subito) {
+    if (o.vx === undefined || subito || Math.abs(x - o.vx) > 1.5 || Math.abs(z - o.vz) > 1.5) { o.vx = x; o.vz = z; }
+    else { const k = Math.min(1, dt * VELOCITA_SEGUI_POSIZIONE); o.vx += (x - o.vx) * k; o.vz += (z - o.vz) * k; }
+    return { x: o.vx, z: o.vz };
   }
 
   // Gira un personaggio verso la direzione di marcia (con un po' di dolcezza). Il modello "guarda" verso `fronte`.
   gira(o, dir, dt, subito) {
     const bersaglio = Vista3D.angoloDirezione(dir);
-    o.angolo = subito ? bersaglio : o.angolo + Vista3D.differenzaAngoli(o.angolo, bersaglio) * Math.min(1, dt * 12);
+    o.virata = subito ? 0 : Vista3D.differenzaAngoli(o.angolo, bersaglio);       // quanto manca per finire la curva (positivo = a destra)
+    o.angolo = subito ? bersaglio : o.angolo + Vista3D.differenzaAngoli(o.angolo, bersaglio) * Math.min(1, dt * 14);
     o.interno.rotation.y = o.fronte - o.angolo;
   }
 
@@ -357,27 +525,30 @@ class VistaThree {
     const tema = TEMI[g.parametri.tema];
     const t = millis() / 1000;
     const p = g.giocatore;
-    const inGioco = g.stato === 'gioco';
+    const inGioco = g.stato === 'gioco' && !g.inPausa && !g.inAttesaInizio;   // in pausa i personaggi smettono di camminare
     this.aggiornaAngolo(g, dt);
 
     // Camera dietro e sopra il personaggio.
     const avanti = { x: Math.cos(this.angolo), z: Math.sin(this.angolo) };
-    const px = p.x + 0.5, pz = p.y + 0.5;
+    const pos = this.seguiPosizione(this.giocatore, p.x + 0.5, p.y + 0.5, dt, !inGioco);
+    const px = pos.x, pz = pos.z;
     this.camera.position.set(px - avanti.x * DISTANZA_CAMERA, ALTEZZA_CAMERA, pz - avanti.z * DISTANZA_CAMERA);
     this.camera.lookAt(px + avanti.x * PUNTO_MIRA_AVANTI, 0.1, pz + avanti.z * PUNTO_MIRA_AVANTI);
 
     // Viandante e lanterna.
     this.giocatore.gruppo.position.set(px, 0, pz);
     this.gira(this.giocatore, p.dir, dt, !inGioco);
-    this.camminata(this.giocatore, inGioco && !p.fermo, dt);
+    this.camminata(this.giocatore, inGioco && !p.fermo, dt, p.velocitaAttuale);
     this.giocatore.cristallo.rotation.y = t * 2;
     this.giocatore.cristallo.position.y = this.giocatore.altezzaTesta + 0.28 + 0.04 * Math.sin(t * 3);
     this.torcia.position.set(px + Math.cos(this.angolo + 1.2) * 0.3, 1.1, pz + Math.sin(this.angolo + 1.2) * 0.3);
+    if (OMBRE_REALI) { this.luceSole.target.position.set(px, 0, pz); this.luceSole.position.set(px - 3, 8, pz + 4); }   // la zona d'ombra segue il giocatore
 
     // Fantasmi.
     g.fantasmi.forEach((f, i) => {
       const o = this.oggettiFantasmi[i];
-      o.gruppo.position.set(f.x + 0.5, 0, f.y + 0.5);
+      const q = this.seguiPosizione(o, f.x + 0.5, f.y + 0.5, dt, !inGioco);
+      o.gruppo.position.set(q.x, 0, q.z);
       this.gira(o, f.dir, dt, !inGioco);
       const colore = f.spaventato
         ? ((g.potenza < AVVISO_FINE_POTENZA && Math.floor(g.potenza * 6) % 2 === 0) ? [255, 255, 255] : [60, 90, 220])

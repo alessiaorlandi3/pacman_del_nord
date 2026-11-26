@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Il Trono di Ghiaccio - Pac-Man a tema Game of Thrones</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b1018; color: #cfd8e3;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-family: Georgia, serif; }
+  canvas { border: 3px solid #3a4658; border-radius: 6px; box-shadow: 0 0 30px #00000099; }
+  p { margin: 10px 0 0; font-size: 14px; color: #8a97a8; }
+</style>
+</head>
+<body>
+<script>
+// ====== Configurazione ======
+const COLS = 21, ROWS = 13, CELL = 30, HUD = 40;
+const FOOD_POINTS = 20;
+const START_LIVES = 3;
+const ENEMY_STEP_MS = 360;
+
+// # = muro/blocco, . = cibo, spazio = vuoto
+const MAP = [
+  "#####################",
+  "#.........#.........#",
+  "#.###.###.#.###.###.#",
+  "#...................#",
+  "#.###.#.#####.#.###.#",
+  "#.....#...#...#.....#",
+  "#.....#.......#.....#",
+  "#.....#...#...#.....#",
+  "#.###.#.#####.#.###.#",
+  "#...................#",
+  "#.###.###.#.###.###.#",
+  "#.........#.........#",
+  "#####################"
+];
+const PLAYER_START = { x: 10, y: 9 };
+const ENEMY_START  = { x: 9,  y: 1 };
+
+// ====== Stato di gioco ======
+let grid, foodLeft, score, lives;
+let player, enemy;
+let state = "start";           // start | play | win | lose
+let lastEnemyMove = 0;
+let hitFlash = 0;
+let foodPulse = 0;
+
+// ====== Audio (Web Audio API, nessun file esterno) ======
+let actx = null, musicTimer = null, musicStep = 0, muted = false;
+
+function initAudio() {
+  if (!actx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) actx = new AC();
+  }
+  if (actx && actx.state === "suspended") actx.resume();
+}
+
+function tone(freq, dur, type, vol, slideTo, delay) {
+  if (!actx || muted) return;
+  const t0 = actx.currentTime + (delay || 0);
+  const osc = actx.createOscillator();
+  const g = actx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t0);
+  if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+  g.gain.setValueAtTime(vol, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  osc.connect(g); g.connect(actx.destination);
+  osc.start(t0); osc.stop(t0 + dur + 0.02);
+}
+
+function sfxEat()  { tone(880, 0.07, "square", 0.08, 1320); }
+function sfxHit()  { tone(420, 0.45, "sawtooth", 0.16, 70); tone(120, 0.5, "square", 0.1, 50); }
+function sfxWin()  { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.25, "triangle", 0.15, null, i * 0.16)); }
+function sfxLose() { [330, 262, 196, 147].forEach((f, i) => tone(f, 0.4, "sawtooth", 0.1, null, i * 0.28)); }
+
+// Melodia originale cupa in re minore (basso + arpeggio)
+const BASS = [73.42, 0, 73.42, 0, 58.27, 0, 58.27, 0, 65.41, 0, 65.41, 0, 55.0, 0, 55.0, 0];
+const ARP  = [293.66, 349.23, 440, 349.23, 293.66, 349.23, 466.16, 349.23,
+              261.63, 329.63, 392, 329.63, 220, 277.18, 329.63, 277.18];
+
+function startMusic() {
+  stopMusic();
+  musicStep = 0;
+  musicTimer = setInterval(() => {
+    const i = musicStep % 16;
+    if (BASS[i]) tone(BASS[i], 0.35, "triangle", 0.12);
+    tone(ARP[i], 0.18, "sine", 0.045);
+    musicStep++;
+  }, 230);
+}
+function stopMusic() { if (musicTimer) { clearInterval(musicTimer); musicTimer = null; } }
+
+// ====== Logica ======
+function resetGame() {
+  grid = MAP.map(r => r.split(""));
+  foodLeft = 0;
+  for (let y = 0; y < ROWS; y++)
+    for (let x = 0; x < COLS; x++) {
+      if ((x === PLAYER_START.x && y === PLAYER_START.y) ||
+          (x === ENEMY_START.x && y === ENEMY_START.y) ) grid[y][x] = " ";
+      if (grid[y][x] === ".") foodLeft++;
+    }
+  score = 0;
+  lives = START_LIVES;
+  resetPositions();
+}
+
+function resetPositions() {
+  player = { x: PLAYER_START.x, y: PLAYER_START.y };
+  enemy = { x: ENEMY_START.x, y: ENEMY_START.y, dx: 0, dy: 0 };
+  lastEnemyMove = millis();
+}
+
+function isWall(x, y) {
+  return x < 0 || y < 0 || x >= COLS || y >= ROWS || grid[y][x] === "#";
+}
+
+function movePlayer(dx, dy) {
+  const nx = player.x + dx, ny = player.y + dy;
+  if (isWall(nx, ny)) return;
+  player.x = nx; player.y = ny;
+  if (grid[ny][nx] === ".") {
+    grid[ny][nx] = " ";
+    score += FOOD_POINTS;
+    foodLeft--;
+    sfxEat();
+  }
+  if (checkCollision()) return;
+  if (foodLeft <= 0) endGame("win");
+}
+
+function moveEnemy() {
+  const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+  let options = dirs.filter(d => !isWall(enemy.x + d[0], enemy.y + d[1]));
+  // evita di tornare indietro, se possibile
+  if (options.length > 1) {
+    const filtered = options.filter(d => !(d[0] === -enemy.dx && d[1] === -enemy.dy));
+    if (filtered.length) options = filtered;
+  }
+  if (!options.length) return;
+  let choice;
+  if (random() < 0.55) {
+    // insegue il giocatore (distanza di Manhattan minima)
+    let best = Infinity;
+    options.forEach(d => {
+      const dist = abs(enemy.x + d[0] - player.x) + abs(enemy.y + d[1] - player.y);
+      if (dist < best) { best = dist; choice = d; }
+    });
+  } else {
+    choice = random(options);
+  }
+  enemy.dx = choice[0]; enemy.dy = choice[1];
+  enemy.x += choice[0]; enemy.y += choice[1];
+  checkCollision();
+}
+
+function checkCollision() {
+  if (player.x === enemy.x && player.y === enemy.y) {
+    lives--;
+    sfxHit();
+    hitFlash = 18;
+    if (lives <= 0) { endGame("lose"); }
+    else { resetPositions(); }
+    return true;
+  }
+  return false;
+}
+
+function endGame(result) {
+  state = result;
+  stopMusic();
+  if (result === "win") sfxWin(); else sfxLose();
+}
+
+function startGame() {
+  initAudio();
+  resetGame();
+  state = "play";
+  startMusic();
+}
+
+// ====== p5.js ======
+function setup() {
+  createCanvas(COLS * CELL, ROWS * CELL + HUD);
+  textFont("Georgia");
+  resetGame();
+  const hint = createP("Frecce: muoviti · M: audio on/off · Invio/Spazio: inizia/ricomincia");
+}
+
+function draw() {
+  background(11, 16, 24);
+  if (state === "play") {
+    if (millis() - lastEnemyMove >= ENEMY_STEP_MS) {
+      lastEnemyMove = millis();
+      moveEnemy();
+    }
+  }
+  foodPulse += 0.1;
+  push();
+  translate(0, HUD);
+  drawMaze();
+  if (state !== "start") {
+    drawEnemy(enemy.x * CELL + CELL / 2, enemy.y * CELL + CELL / 2);
+    drawJon(player.x * CELL + CELL / 2, player.y * CELL + CELL / 2);
+  }
+  pop();
+  drawHUD();
+  if (hitFlash > 0) {
+    noStroke(); fill(200, 20, 20, hitFlash * 8);
+    rect(0, 0, width, height);
+    hitFlash--;
+  }
+  if (state === "start") drawOverlay("IL TRONO DI GHIACCIO",
+    "Jon Snow, raccogli tutto il cibo e sfuggi al Re della Notte!",
+    "Premi Invio o Spazio per iniziare", color(120, 180, 255));
+  if (state === "win") drawOverlay("HAI VINTO!",
+    "Il Nord è salvo. Punteggio finale: " + score,
+    "Premi Invio o Spazio per giocare ancora", color(255, 215, 90));
+  if (state === "lose") drawOverlay("SCONFITTA",
+    "Il Re della Notte ha vinto... Punteggio: " + score,
+    "Premi Invio o Spazio per riprovare", color(230, 70, 70));
+}
+
+function drawMaze() {
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      const px = x * CELL, py = y * CELL;
+      const c = grid[y][x];
+      if (c === "#") {
+        noStroke();
+        fill(52, 66, 88);
+        rect(px + 1, py + 1, CELL - 2, CELL - 2, 4);
+        fill(78, 95, 122);
+        rect(px + 3, py + 3, CELL - 6, 5, 2);          // riflesso ghiacciato
+        stroke(34, 44, 60); strokeWeight(1);
+        line(px + 3, py + CELL / 2 + 2, px + CELL - 3, py + CELL / 2 + 2);
+      } else if (c === ".") {
+        noStroke();
+        const r = 4 + sin(foodPulse + x + y) * 0.7;
+        fill(255, 200, 60, 60);
+        circle(px + CELL / 2, py + CELL / 2, r * 3);
+        fill(255, 214, 80);
+        circle(px + CELL / 2, py + CELL / 2, r * 1.6);   // moneta/cibo d'oro
+      }
+    }
+  }
+}
+
+function drawJon(cx, cy) {
+  push(); translate(cx, cy); noStroke();
+  fill(20, 20, 24);                                   // mantello nero
+  triangle(-12, 13, 12, 13, 0, -3);
+  fill(235, 235, 240);                                // pelliccia bianca
+  ellipse(0, 3, 20, 7);
+  fill(240, 205, 175);                                // viso
+  circle(0, -3, 14);
+  fill(45, 30, 25);                                   // capelli scuri
+  arc(0, -5, 15, 13, PI, TWO_PI);
+  fill(20); circle(-2.5, -3, 1.8); circle(2.5, -3, 1.8);
+  stroke(190, 200, 215); strokeWeight(2);             // spada Lungo Artiglio
+  line(10, 12, 13, -8);
+  stroke(120, 80, 40); line(8, 8, 12, 9);
+  pop();
+}
+
+function drawEnemy(cx, cy) {
+  push(); translate(cx, cy); noStroke();
+  fill(90, 160, 230, 60); circle(0, 0, 32);           // alone gelido
+  fill(70, 110, 160);                                  // veste
+  rect(-9, 2, 18, 11, 3);
+  fill(170, 215, 245);                                 // corona di ghiaccio
+  for (let i = -2; i <= 2; i++) triangle(i * 4 - 2, -7, i * 4 + 2, -7, i * 4, -14 + abs(i) * 2);
+  fill(200, 230, 250);                                 // volto pallido
+  circle(0, -2, 15);
+  fill(60, 190, 255);                                  // occhi azzurri luminosi
+  circle(-3, -3, 3.2); circle(3, -3, 3.2);
+  fill(40, 80, 120); rect(-3, 2, 6, 1.5, 1);
+  pop();
+}
+
+function drawHUD() {
+  noStroke(); fill(22, 30, 42);
+  rect(0, 0, width, HUD);
+  stroke(58, 70, 88); line(0, HUD, width, HUD);
+  noStroke(); fill(255, 214, 80);
+  textSize(20); textAlign(LEFT, CENTER);
+  text("Punteggio: " + score, 14, HUD / 2);
+  textAlign(RIGHT, CENTER); fill(230, 230, 240);
+  text("Vite:", width - 14 - START_LIVES * 26, HUD / 2);
+  for (let i = 0; i < START_LIVES; i++) {
+    const hx = width - 14 - (START_LIVES - i) * 26 + 13, hy = HUD / 2;
+    fill(i < lives ? color(210, 40, 50) : color(60, 66, 78));
+    drawHeart(hx, hy, 9);
+  }
+  textAlign(CENTER, CENTER); fill(150, 165, 185); textSize(14);
+  text("Cibo rimasto: " + foodLeft, width / 2, HUD / 2);
+}
+
+function drawHeart(x, y, s) {
+  noStroke();
+  circle(x - s / 3, y - s / 4, s * 0.75);
+  circle(x + s / 3, y - s / 4, s * 0.75);
+  triangle(x - s * 0.68, y - s * 0.05, x + s * 0.68, y - s * 0.05, x, y + s * 0.7);
+}
+
+function drawOverlay(title, line1, line2, col) {
+  noStroke(); fill(5, 8, 14, 215);
+  rect(0, HUD, width, height - HUD);
+  textAlign(CENTER, CENTER);
+  fill(col); textSize(40); textStyle(BOLD);
+  text(title, width / 2, height / 2 - 40);
+  textStyle(NORMAL); fill(225, 232, 242); textSize(17);
+  text(line1, width / 2, height / 2 + 12);
+  fill(150, 165, 185); textSize(15);
+  text(line2, width / 2, height / 2 + 52);
+}
+
+function keyPressed() {
+  initAudio();
+  if (key === "m" || key === "M") {
+    muted = !muted;
+    if (muted) stopMusic(); else if (state === "play") startMusic();
+    return false;
+  }
+  if (state !== "play") {
+    if (keyCode === ENTER || key === " ") startGame();
+    return false;
+  }
+  if (keyCode === LEFT_ARROW)  movePlayer(-1, 0);
+  else if (keyCode === RIGHT_ARROW) movePlayer(1, 0);
+  else if (keyCode === UP_ARROW)    movePlayer(0, -1);
+  else if (keyCode === DOWN_ARROW)  movePlayer(0, 1);
+  else return true;
+  return false; // evita lo scroll della pagina
+}
+</script>
+</body>
+</html>

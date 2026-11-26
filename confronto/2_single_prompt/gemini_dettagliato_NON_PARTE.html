@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Game of Thrones - Pac-Man Style</title>
+  <!-- Inclusione di p5.js da CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.js"></script>
+  <!-- Inclusione di p5.sound da CDN per effetti sonori e musica -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/addons/p5.sound.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #0b0f19;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      color: #e0e6ed;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    h1 {
+      margin: 5px 0;
+      font-size: 24px;
+      letter-spacing: 2px;
+      color: #94a3b8;
+    }
+    #game-container {
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+      border: 2px solid #1e293b;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>GAME OF THRONES: LA LUNGA NOTTE</h1>
+  <div id="game-container"></div>
+
+  <script>
+    // Dimensioni della griglia
+    const cols = 21;
+    const rows = 13;
+    const cellSize = 30;
+
+    // 0 = vuoto, 1 = muro, 2 = cibo (vetro di drago)
+    let mapGrid = [
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+      [1,2,2,2,2,2,2,2,2,2,1,2,2,2,2,2,2,2,2,2,1],
+      [1,2,1,1,1,2,1,1,1,2,1,2,1,1,1,2,1,1,1,2,1],
+      [1,2,1,1,1,2,1,1,1,2,1,2,1,1,1,2,1,1,1,2,1],
+      [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+      [1,2,1,1,1,2,1,2,1,1,1,1,1,2,1,2,1,1,1,2,1],
+      [1,2,2,2,2,2,1,2,2,2,1,2,2,2,1,2,2,2,2,2,1],
+      [1,1,1,1,1,2,1,1,1,0,1,0,1,1,1,2,1,1,1,1,1],
+      [0,0,0,0,1,2,1,0,0,0,0,0,0,0,1,2,1,0,0,0,0],
+      [1,1,1,1,1,2,1,0,1,1,0,1,1,0,1,2,1,1,1,1,1],
+      [1,2,2,2,2,2,2,2,2,1,1,1,2,2,2,2,2,2,2,2,1],
+      [1,2,1,1,1,2,1,1,2,2,2,2,2,1,1,2,1,1,1,2,1],
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    ];
+
+    let player, enemy;
+    let score = 0;
+    let lives = 3;
+    let gameState = "START"; // START, PLAYING, WON, LOST
+
+    // Suoni
+    let soundEat, soundHit, bgMusic;
+    let enemyMoveTimer = 0;
+    let enemyMoveInterval = 350; // millisecondi tra i movimenti del nemico
+
+    function preload() {
+      // Caricamento dei suoni (con fallback sintetico in caso di blocco browser/errore)
+      soundFormats('mp3', 'wav');
+      // Usiamo oscillatori interni per sicurezza e immediatezza senza dipendere da URL esterni offline
+    }
+
+    function setup() {
+      let cnv = createCanvas(cols * cellSize, rows * cellSize + 40);
+      cnv.parent("game-container");
+
+      resetGame();
+    }
+
+    function resetGame() {
+      // Ripristina mappa
+      score = 0;
+      lives = 3;
+      initEntities();
+    }
+
+    function initEntities() {
+      // Giocatore: Jon Snow (parte in basso al centro)
+      player = { x: 10, y: 10 };
+      // Nemico: Re della Notte (parte in alto al centro)
+      enemy = { x: 10, y: 3 };
+    }
+
+    function draw() {
+      background(11, 15, 25);
+
+      if (gameState === "START") {
+        drawStartScreen();
+      } else if (gameState === "PLAYING") {
+        updateGame();
+        drawGame();
+      } else if (gameState === "WON" || gameState === "LOST") {
+        drawGame();
+        drawEndScreen();
+      }
+    }
+
+    function drawStartScreen() {
+      fill(255);
+      textAlign(CENTER, CENTER);
+      textSize(26);
+      text("GAME OF THRONES", width / 2, height / 2 - 50);
+      textSize(16);
+      fill(148, 163, 184);
+      text("Raccogli tutto il Vetro di Drago ed evita il Re della Notte", width / 2, height / 2 - 10);
+      text("Usa le FRECCE per muoverti", width / 2, height / 2 + 20);
+      
+      fill(56, 189, 248);
+      rect(width / 2 - 70, height / 2 + 60, 140, 40, 8);
+      fill(11, 15, 25);
+      textSize(16);
+      text("INIZIA", width / 2, height / 2 + 80);
+    }
+
+    function mousePressed() {
+      if (gameState === "START") {
+        if (mouseX > width / 2 - 70 && mouseX < width / 2 + 70 &&
+            mouseY > height / 2 + 60 && mouseY < height / 2 + 100) {
+          gameState = "PLAYING";
+        }
+      } else if (gameState === "WON" || gameState === "LOST") {
+        // Reset completo della mappa dei cibi
+        resetMap();
+        resetGame();
+        gameState = "PLAYING";
+      }
+    }
+
+    function resetMap() {
+      // Ricarica i cibi originali
+      mapGrid = [
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        [1,2,2,2,2,2,2,2,2,2,1,2,2,2,2,2,2,2,2,2,1],
+        [1,2,1,1,1,2,1,1,1,2,1,2,1,1,1,2,1,1,1,2,1],
+        [1,2,1,1,1,2,1,1,1,2,1,2,1,1,1,2,1,1,1,2,1],
+        [1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1],
+        [1,2,1,1,1,2,1,2,1,1,1,1,1,2,1,2,1,1,1,2,1],
+        [1,2,2,2,2,2,1,2,2,2,1,2,2,2,1,2,2,2,2,2,1],
+        [1,1,1,1,1,2,1,1,1,0,1,0,1,1,1,2,1,1,1,1,1],
+        [0,0,0,0,1,2,1,0,0,0,0,0,0,0,1,2,1,0,0,0,0],
+        [1,1,1,1,1,2,1,0,1,1,0,1,1,0,1,2,1,1,1,1,1],
+        [1,2,2,2,2,2,2,2,2,1,1,1,2,2,2,2,2,2,2,2,1],
+        [1,2,1,1,1,2,1,1,2,2,2,2,2,1,1,2,1,1,1,2,1],
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+      ];
+    }
+
+    function updateGame() {
+      // Movimento automatico del Re della Notte basato sul tempo
+      if (millis() > enemyMoveTimer + enemyMoveInterval) {
+        moveEnemy();
+        enemyMoveTimer = millis();
+      }
+
+      // Controllo collisione giocatore-nemico
+      checkCollision();
+    }
+
+    function moveEnemy() {
+      // Semplice IA: sceglie una direzione casuale valida verso il giocatore o casuale
+      let dirs = [
+        {x: 0, y: -1}, {x: 0, y: 1}, {x: -1, y: 0}, {x: 1, y: 0}
+      ];
+
+      // Filtra direzioni valide (non muri)
+      let validDirs = dirs.filter(d => {
+        let nx = enemy.x + d.x;
+        let ny = enemy.y + d.y;
+        return nx >= 0 && nx < cols && ny >= 0 && ny < rows && mapGrid[ny][nx] !== 1;
+      });
+
+      if (validDirs.length > 0) {
+        // Preferisce la mossa che avvicina il nemico a Jon Snow
+        validDirs.sort((a, b) => {
+          let distA = dist(enemy.x + a.x, enemy.y + a.y, player.x, player.y);
+          let distB = dist(enemy.x + b.x, enemy.y + b.y, player.x, player.y);
+          return distA - distB;
+        });
+
+        // Muove verso il giocatore con una certa probabilità, altrimenti casuale
+        let chosen = validDirs[0];
+        enemy.x += chosen.x;
+        enemy.y += chosen.y;
+      }
+    }
+
+    function checkCollision() {
+      if (player.x === enemy.x && player.y === enemy.y) {
+        lives--;
+        playHitSound();
+        if (lives <= 0) {
+          gameState = "LOST";
+        } else {
+          initEntities(); // Reset posizioni
+        }
+      }
+    }
+
+    function drawGame() {
+      // Disegna il labirinto e gli elementi
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          let x = c * cellSize;
+          let y = r * cellSize;
+
+          if (mapGrid[r][c] === 1) {
+            // Muro stile ghiaccio/pietra fortezza
+            fill(30, 41, 59);
+            stroke(51, 65, 85);
+            rect(x, y, cellSize, cellSize);
+          } else if (mapGrid[r][c] === 2) {
+            // Cibo: Vetro di Drago (piccolo diamante azzurro)
+            noStroke();
+            fill(56, 189, 248);
+            push();
+            translate(x + cellSize / 2, y + cellSize / 2);
+            rotate(QUARTER_PI);
+            rectMode(CENTER);
+            rect(0, 0, 8, 8);
+            pop();
+          }
+        }
+      }
+
+      // Disegna Giocatore (Jon Snow - mantello nero, dettagli chiari)
+      fill(248, 250, 252);
+      noStroke();
+      ellipse(player.x * cellSize + cellSize / 2, player.y * cellSize + cellSize / 2, cellSize - 8);
+      // Dettaglio viso/spada
+      fill(15, 23, 42);
+      rect(player.x * cellSize + 12, player.y * cellSize + 8, 6, 6);
+
+      // Disegna Nemico (Re della Notte - blu ghiaccio con corone/occhi azzurri luminosi)
+      fill(14, 165, 233);
+      noStroke();
+      ellipse(enemy.x * cellSize + cellSize / 2, enemy.y * cellSize + cellSize / 2, cellSize - 6);
+      fill(255, 255, 255);
+      // Occhi minacciosi
+      ellipse(enemy.x * cellSize + 10, enemy.y * cellSize + 12, 4, 4);
+      ellipse(enemy.x * cellSize + 20, enemy.y * cellSize + 12, 4, 4);
+
+      // Disegna Pannello Inferiore (Punteggio e Vite)
+      fill(15, 23, 42);
+      noStroke();
+      rect(0, rows * cellSize, width, 40);
+
+      fill(255);
+      textSize(14);
+      textAlign(LEFT, CENTER);
+      text("PUNTI: " + score, 15, rows * cellSize + 20);
+
+      textAlign(RIGHT, CENTER);
+      text("VITE: " + "❤️ ".repeat(lives), width - 15, rows * cellSize + 20);
+    }
+
+    function drawEndScreen() {
+      fill(0, 0, 0, 200);
+      rect(0, 0, width, height);
+
+      fill(255);
+      textAlign(CENTER, CENTER);
+      textSize(28);
+      if (gameState === "WON") {
+        text("HAI SALVATO WESATEROS!", width / 2, height / 2 - 30);
+      } else {
+        text("LA LUNGA NOTTE HA VINTO", width / 2, height / 2 - 30);
+      }
+
+      textSize(16);
+      fill(148, 163, 184);
+      text("Clicca qui per rigiocare", width / 2, height / 2 + 20);
+    }
+
+    function keyPressed() {
+      if (gameState !== "PLAYING") return;
+
+      let nextX = player.x;
+      let nextY = player.y;
+
+      if (keyCode === LEFT_ARROW) {
+        nextX--;
+      } else if (keyCode === RIGHT_ARROW) {
+        nextX++;
+      } else if (keyCode === UP_ARROW) {
+        nextY--;
+      } else if (keyCode === DOWN_ARROW) {
+        nextY++;
+      }
+
+      // Verifica se la mossa è valida (dentro i confini e non è un muro)
+      if (nextX >= 0 && nextX < cols && nextY >= 0 && nextY < rows) {
+        if (mapGrid[nextY][nextX] !== 1) {
+          player.x = nextX;
+          player.y = nextY;
+
+          // Raccoglie il cibo
+          if (mapGrid[player.y][player.x] === 2) {
+            mapGrid[player.y][player.x] = 0;
+            score += 20;
+            playEatSound();
+
+            // Controlla vittoria
+            let foodLeft = false;
+            for (let r = 0; r < rows; r++) {
+              for (let c = 0; c < cols; c++) {
+                if (mapGrid[r][c] === 2) foodLeft = true;
+              }
+            }
+            if (!foodLeft) {
+              gameState = "WON";
+            }
+          }
+
+          checkCollision();
+        }
+      }
+    }
+
+    // Effetti sonori sintetizzati tramite Web Audio API / p5.sound per evitare dipendenze esterne
+    function playEatSound() {
+      try {
+        let osc = new p5.Oscillator('triangle');
+        osc.freq(440);
+        osc.amp(0.1);
+        osc.start();
+        setTimeout(() => osc.stop(), 80);
+      } catch (e) {
+        // Ignora se l'audio non è sbloccato dall'utente
+      }
+    }
+
+    function playHitSound() {
+      try {
+        let osc = new p5.Oscillator('sawtooth');
+        osc.freq(120);
+        osc.amp(0.2);
+        osc.start();
+        setTimeout(() => osc.stop(), 200);
+      } catch (e) {
+        // Ignora
+      }
+    }
+  </script>
+
+</body>
+</html>

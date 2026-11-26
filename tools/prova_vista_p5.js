@@ -4,8 +4,8 @@ const dir=process.argv[2];
 const calls={}, pgCalls={}; let ultimaCamera=null, nanTrovato=false;
 function conta(o,n,a){o[n]=(o[n]||0)+1; for(const x of a) if(typeof x==='number'&&!isFinite(x)) nanTrovato=n;}
 const pg=new Proxy({width:960,height:600},{get:(t,k)=>{ if(k in t) return t[k]; return (...a)=>{conta(pgCalls,k,a); if(k==='camera') ultimaCamera=a;}; }});
-const names=['rotate','background','fill','noStroke','textSize','textAlign','text','push','pop','translate','rect','circle','createCanvas','triangle','stroke','strokeWeight','scale','image'];
-const ctx={drawingContext:new Proxy({},{get:()=>()=>{}}),console,Math,setTimeout,millis:()=>1234,width:960,height:640,frameCount:0,deltaTime:16.7,frameRate:()=>60,LEFT:'l',RIGHT:'r',CENTER:'c',key:'ArrowUp',WEBGL:'webgl',createGraphics:()=>pg};
+const names=['rotate','background','fill','noStroke','textSize','textAlign','text','push','pop','translate','rect','circle','createCanvas','triangle','stroke','strokeWeight','strokeCap','scale','image','textFont','textStyle','line','quad','noFill','beginShape','vertex','endShape'];
+const ctx={textWidth:()=>100,drawingContext:new Proxy({},{get:()=>()=>{}}),console,Math,setTimeout,millis:()=>1234,width:960,height:640,frameCount:0,deltaTime:16.7,frameRate:()=>60,SQUARE:'s',LEFT:'l',RIGHT:'r',CENTER:'c',key:'ArrowUp',WEBGL:'webgl',createGraphics:()=>pg};
 for(const n of names) ctx[n]=(...a)=>conta(calls,n,a);
 vm.createContext(ctx);
 const files=['costanti','labirinti','labirinto','livelli','suoni','entita','giocatore','fantasma','gioco','vista2d','vista3d','sketch'];

@@ -14,8 +14,8 @@ function finto(nome){
   });
 }
 const pgStub=new Proxy({width:960,height:600},{get:(t,k)=>(k in t)?t[k]:(()=>{})});
-const names=['rotate','background','fill','noStroke','textSize','textAlign','text','push','pop','translate','rect','circle','createCanvas','triangle','stroke','strokeWeight','scale','image'];
-const ctx={document:{createElement:()=>finto('canvas')},THREE:finto('THREE'),drawingContext:{drawImage:()=>{calls.drawImage=(calls.drawImage||0)+1;},save(){},restore(){},beginPath(){},arc(){},clip(){}},console,Math,Float32Array,setTimeout,millis:()=>1234,width:960,height:640,frameCount:0,deltaTime:16.7,frameRate:()=>60,LEFT:'l',RIGHT:'r',CENTER:'c',key:'ArrowUp',WEBGL:'webgl',createGraphics:()=>pgStub};
+const names=['rotate','background','fill','noStroke','textSize','textAlign','text','push','pop','translate','rect','circle','createCanvas','triangle','stroke','strokeWeight','strokeCap','scale','image','textFont','textStyle','line','quad','noFill','beginShape','vertex','endShape'];
+const ctx={textWidth:()=>100,millis:()=>1234,document:{createElement:()=>finto('canvas')},THREE:finto('THREE'),drawingContext:{drawImage:()=>{calls.drawImage=(calls.drawImage||0)+1;},save(){},restore(){},beginPath(){},arc(){},clip(){}},console,Math,Float32Array,setTimeout,millis:()=>1234,width:960,height:640,frameCount:0,deltaTime:16.7,frameRate:()=>60,SQUARE:'s',LEFT:'l',RIGHT:'r',CENTER:'c',key:'ArrowUp',WEBGL:'webgl',createGraphics:()=>pgStub};
 for(const n of names) ctx[n]=()=>{};
 vm.createContext(ctx);
 const files=['costanti','labirinti','labirinto','livelli','suoni','entita','giocatore','fantasma','gioco','vista2d','vista3d','modelli','ambiente','vista_three','sketch'];
@@ -32,6 +32,6 @@ for(let n=1;n<=8;n++){
   const modelli=v.oggettiFantasmi.map(o=>Object.keys(vm.runInContext('CONFIGURAZIONE_MODELLI',ctx)).find(k=>vm.runInContext('CONFIGURAZIONE_MODELLI',ctx)[k]===o.conf));
   usati[n]=modelli.join(',');
 }
-if(!/drago/.test(usati[8])||/drago/.test(usati[1])) throw new Error('il drago deve comparire solo nell\'ultimo livello: '+JSON.stringify(usati));
+for(const n in usati){ const m=usati[n].split(',').sort().join(','); if(m!=='drago,pipistrello,scheletro') throw new Error('in ogni livello i fantasmi devono essere drago, pipistrello e scheletro: livello '+n+' -> '+usati[n]); }
 console.log('OK errori:',errori,'NaN:',nan,'render:',calls['THREE#.render()']||calls['THREE#.render'],'drawImage:',calls.drawImage);
 console.log('modelli per livello:',JSON.stringify(usati));

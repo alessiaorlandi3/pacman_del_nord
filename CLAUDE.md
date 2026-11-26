@@ -1,6 +1,6 @@
 # Pac-Man del Nord — guida per chi continua il progetto
 
-Progetto universitario (LUMSA, corso "Tecnologie avanzate per l'innovazione e l'esperienza"). Esame a gennaio, presentazione al professore a dicembre.
+Progetto universitario (LUMSA, corso "Tecnologie Avanzate e Intelligenza Artificiale"). Esame a gennaio, presentazione al professore a dicembre.
 Confronto tra tre modi di costruire un'esperienza digitale partendo da un vecchio Pac-Man in Processing a tema Game of Thrones:
 1. analisi del progetto originale (chiusa: 15 problemi trovati, misure di partenza prese);
 2. un solo prompt a un'AI (fatto, c'è un confronto in xlsx);
@@ -46,7 +46,7 @@ Catena di ripiego: Three.js → vista 3D p5 → vista 2D (se qualcosa dà errore
 
 ## Grafica e licenze (importante)
 - Si usano solo materiali originali o gratuiti con crediti documentati in `CREDITI.md` (aggiornarlo se si aggiunge qualcosa). Niente immagini, musiche o volti protetti della serie; nomi e colori delle casate vanno bene solo come riferimento.
-- Personaggi: pacchetti Quaternius CC0 (cavaliere, scheletro, pipistrello, drago, slime). Il cavaliere ha la tunica ricolorata di verde (colore del giocatore) ed è diviso in parti (corpo, braccia, gambe) per camminare; i mostri oscillano soltanto.
+- Personaggi: pacchetti Quaternius CC0 (cavaliere, scheletro, pipistrello, drago; lo slime è nel pacchetto ma non è più usato). Il cavaliere ha la tunica ricolorata di verde (colore del giocatore) ed è diviso in parti (corpo, braccia, gambe) per camminare; i mostri oscillano soltanto.
 - Il giocatore deve sempre distinguersi dai fantasmi: verde brillante + anello bianco + cristallo verde.
 
 ## Cosa non è mai stato visto con i propri occhi
@@ -58,3 +58,17 @@ Chi ha scritto `vista_three.js`, `ambiente.js` e le decorazioni non poteva scari
 - Misurare gli FPS in tutti i livelli con la scena completa; ridurre particelle/torce se servono.
 - **Documentazione per l'esame:** testo dei requisiti (RF1–RF20, RNF1–RNF8), progettazione (mappa dei file, macchina a stati, tabella livelli), relazione di verifica (risultati di `verifica.js`, FPS), diario del lavoro con l'AI, tabella crediti, slide (massimo 10, prima e ultima incluse) + testo breve di 4–6 pagine, guida alle domande d'esame con la mappa delle funzioni della vista 3D. Eventuale aggiornamento del confronto xlsx con le nuove misure.
 - Facoltativo: Dorne ha il colore di sfondo non verificato; ricontrollare i colori delle casate se l'utente cambia idea.
+- schermate e riquadro vite/livello: `vista2d.js` (metodi schermataMenu, schermataLivello, schermataFine, pannelloVite); prova: `node tools/prova_schermate.js .`
+- pausa: SPAZIO (o Esc), stato `inPausa` in gioco.js; dopo una vita persa `dopoVita` = true e la vista non mostra la schermata del livello; livello vinto = stato 'completato' (RF21, RF22)
+- difficoltà: tutti i numeri sono in `costanti.js` (vite, velocità e ritardi dei fantasmi, fasi caccia/dispersione, durata del potere, tempo limite); versione più facile dal v18 (vite sempre 3, ritardi dei fantasmi invariati)
+- vite: tornano a 3 a ogni livello superato (RF23)
+- avvio fermo: il livello parte con tutto fermo (`inAttesaInizio`) finché non si preme una freccia (RF24); font e grafica delle schermate da rifare (scelta dei font in corso)
+- movimento: passo legato alla velocità, corpo chinato/rimbalzo/inclinazione nelle curve, posizione disegnata morbida (VELOCITA_SEGUI_POSIZIONE), tempo dei fotogrammi smussato (sketch.js tempoFotogramma)
+- realismo: ombre vere (OMBRE_REALI in costanti.js, il "sole" segue il giocatore con una zona d'ombra di 14x14 celle), tunica verde bosco (CONFIGURAZIONE_MODELLI.cavaliere.tunica), ombra morbida + anello sottile al posto del disco verde
+
+## Caratteri e schermata iniziale (v23)
+- FONT_TITOLI (Libre Baskerville) e FONT_TESTO (Montserrat; pesi leggeri via `peso` in scrivi) sono in costanti.js; il link Google Fonts è in index.html; sketch.js li precarica con document.fonts.load. Per cambiare abbinamento: due costanti + il link.
+- vista2d.js: `scrivi(t,x,y,{titolo,dim,stile,col,alfa,sp,al,ombra})` scrive testo con spaziatura (letterSpacing del canvas, ignorata se non disponibile); `tasto` e `comando` ridisegnati; `schermataMenu` rifatta (titolo spaziato, segmenti dei regni, fascia comandi a due colonne).
+- Menu (v24) come da bozza della studentessa: sfondo radiale nero/rosso scuro, titolo su una riga, otto segmenti dei regni, riquadro con i soli comandi importanti, record sotto, ingranaggio in basso a destra (tasto I o clic) che apre `schermataImpostazioni` (1-8, V, N, P, M). Flag `vista.impostazioni`, `POS_INGRANAGGIO` in costanti.js, `mousePressed` in sketch.js.
+- Ricomincia la partita (v27, RF25): in pausa il tasto R chiede conferma (riavvioChiesto), un secondo R chiama `nuovaPartita(livelloPartenza)`; qualunque altro tasto annulla. Le impostazioni (tasto I o ingranaggio) si aprono ora anche dalla pausa e lì mostrano la riga R. Test RF25 in verifica.js.
+- Fantasmi (v28): in tutti i livelli sono drago (insegue), pipistrello (anticipa) e scheletro (casuale): `modelloPerFantasma` in vista_three.js; la prova tools/prova_vista_three.js lo controlla per ogni livello.

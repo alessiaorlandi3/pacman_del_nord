@@ -10,8 +10,8 @@ const PUNTI_POTENZIAMENTO = 50;
 const PUNTI_FANTASMA = 200;
 
 // Potenziamento (le 4 sfere negli angoli): i fantasmi diventano vulnerabili.
-const DURATA_POTENZA = 6.0;      // secondi
-const FATTORE_SPAVENTATO = 0.6;  // i fantasmi spaventati vanno più piano
+const DURATA_POTENZA = 8.0;      // secondi
+const FATTORE_SPAVENTATO = 0.5;  // i fantasmi spaventati vanno più piano
 const AVVISO_FINE_POTENZA = 2.0; // negli ultimi secondi i fantasmi lampeggiano
 
 // Fantasmi: ognuno ha un comportamento e parte con un po' di ritardo.
@@ -20,18 +20,20 @@ const RITARDI_FANTASMI = [3, 8, 12]; // secondi di attesa all'inizio
 
 // I fantasmi alternano due fasi, come nel Pac-Man classico: nella dispersione
 // vanno ognuno verso il proprio angolo (si respira), nella caccia attaccano.
-const DURATA_DISPERSIONE = 7.0;     // secondi
-const DURATA_CACCIA = 20.0;         // secondi
+const DURATA_DISPERSIONE = 10.0;    // secondi
+const DURATA_CACCIA = 12.0;         // secondi
 const DISTANZA_MINIMA_PARTENZA = 12; // celle tra giocatore e fantasmi all'inizio
-const PAUSA_RIENTRO = 3.0;           // attesa di un fantasma mangiato prima di ripartire
+const PAUSA_RIENTRO = 5.0;           // attesa di un fantasma mangiato prima di ripartire
 const PASSI_ANTICIPO = 4;            // "anticipa" mira a 4 celle davanti al giocatore
 
 const VELOCITA_GIOCATORE = 3.5; // celle al secondo (una corsa, vista da dietro)
-const VELOCITA_FANTASMA = 2.4;  // celle al secondo (più lento del giocatore)
+const VELOCITA_FANTASMA = 2.0;  // celle al secondo (più lento del giocatore)
 const FATTORE_TUNNEL = 0.6;     // nel passaggio laterale si va più piano
-const DISTANZA_CONTATTO = 0.6;  // sotto questa distanza (in celle) c'è contatto
-const PAUSA_INIZIO = 1.5;       // secondi di attesa dopo aver perso una vita
+const DISTANZA_CONTATTO = 0.5;  // sotto questa distanza (in celle) c'è contatto
+const PAUSA_INIZIO = 1.0;       // secondi di attesa dopo aver perso una vita (il gioco riparte senza schermata)
 const PAUSA_LIVELLO = 2.5;      // secondi di attesa all'inizio di ogni livello
+const PAUSA_COMPLETATO = 4.0;   // secondi in cui resta la schermata "livello completato" (INVIO per saltarla)
+const PAUSA_COMPLETATO_MINIMA = 0.6;   // nei primi istanti INVIO non salta la schermata (evita salti per sbaglio)
 const DT_MASSIMO = 0.05;        // se un frame dura di più, il tempo viene limitato
 
 // Comandi: false = frecce "assolute" (su = verso l'alto dello schermo), adatte alla vista
@@ -44,17 +46,17 @@ let CONTROLLI_RELATIVI = false;   // lo imposta lo sketch: true nella vista 3D (
 // ogni 4 c'è un livello speciale (il 4 e l'8), con tempo limite.
 const NUMERO_LIVELLI = 8;
 const OGNI_QUANTI_SPECIALE = 4;
-const INCREMENTO_VELOCITA = 0.1;       // i fantasmi guadagnano questo a ogni livello...
-const VELOCITA_MASSIMA_FANTASMA = 3.2;  // ...fino a questo massimo
-const BONUS_VELOCITA_SPECIALE = 0.2;    // i fantasmi speciali sono un po' più veloci
+const INCREMENTO_VELOCITA = 0.05;      // i fantasmi guadagnano questo a ogni livello...
+const VELOCITA_MASSIMA_FANTASMA = 2.6;  // ...fino a questo massimo
+const BONUS_VELOCITA_SPECIALE = 0.1;    // i fantasmi speciali sono un po' più veloci
 const RIDUZIONE_RITARDO = 0.5;          // ogni livello i fantasmi escono 0,5 s prima
 const RITARDO_MINIMO = 1.0;
-const DURATA_POTENZA_MINIMA = 3.0;      // il potere dura 1 s in meno a ogni livello, fino a 3 s
+const DURATA_POTENZA_MINIMA = 5.0;      // il potere dura 1 s in meno a ogni livello, fino a 3 s
 // Percorso ideale per mangiare tutto: circa 55 s senza fantasmi. Il tempo limite
-// lascia circa il triplo per scappare dai fantasmi.
-const TEMPO_LIMITE_SPECIALE = 150;      // secondi, primo livello speciale
-const RIDUZIONE_TEMPO_SPECIALE = 10;    // ogni livello speciale successivo: 10 s in meno
-const TEMPO_MINIMO_SPECIALE = 120;
+// lascia circa il quadruplo per scappare dai fantasmi.
+const TEMPO_LIMITE_SPECIALE = 210;      // secondi, primo livello speciale
+const RIDUZIONE_TEMPO_SPECIALE = 5;     // ogni livello speciale successivo: 10 s in meno
+const TEMPO_MINIMO_SPECIALE = 180;
 
 const CHIAVE_RECORD = 'pacman_del_nord_record';  // nome con cui il browser salva il record
 
@@ -71,12 +73,20 @@ const ALTEZZA_CAMERA = 2.2;       // quanto sta in alto
 const PUNTO_MIRA_AVANTI = 1.6;    // guarda un po' davanti al personaggio
 const VELOCITA_ROTAZIONE = 4;     // quanto in fretta la camera segue la direzione (più alto = più veloce)
 const ALTEZZA_MURI = 1.3;
+const VELOCITA_SEGUI_POSIZIONE = 28;  // quanto in fretta la vista segue la posizione del gioco (più alto = più preciso, più basso = più morbido)
 const VELOCITA_PASSO = 13;        // quanto in fretta il cavaliere muove gambe e braccia (radianti al secondo)
 const RISOLUZIONE_3D = 1;         // 1 = veloce; 2 = più nitida sugli schermi retina (ma più pesante)
 const RAGGIO_DISEGNO = 9;         // oltre questa distanza (in celle) muri e cibo non vengono disegnati
 // Nella vista 3D si vede meno (niente sguardo dall'alto, nessuna visione dietro di sé): i fantasmi vanno più piano.
 const FATTORE_FANTASMI_3D = 0.75;
 let fattoreFantasmiVista = 1;     // lo imposta lo sketch (1 in 2D, FATTORE_FANTASMI_3D in 3D)
+// Ombre vere (cavaliere, fantasmi e muri proiettano ombre sul pavimento). Più realistico; se gli FPS calano, metti false.
+const OMBRE_REALI = true;
+// Caratteri delle schermate (Google Fonts, caricati in index.html). Se non si caricano, il browser usa Georgia.
+// Per cambiare abbinamento: cambia questi due nomi e il <link> in index.html.
+const FONT_TITOLI = "'Libre Baskerville', Baskerville, Georgia, serif";   // titoli: serif classico
+const FONT_TESTO = "'Montserrat', 'Helvetica Neue', Arial, sans-serif";       // testi: sans leggero
+const POS_INGRANAGGIO = { x: 916, y: 604 };   // ingranaggio delle impostazioni nel menu
 const MISURA_FPS = true;        // scrive gli FPS in console una volta al secondo
 
 // Direzioni: 0 = su, 1 = destra, 2 = giù, 3 = sinistra (in senso orario).

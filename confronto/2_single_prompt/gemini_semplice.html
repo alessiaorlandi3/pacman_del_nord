@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pac-Throne: Fuga da Approdo del Re</title>
+    <style>
+        body {
+            background-color: #0d0d0d;
+            color: #d4af37;
+            font-family: 'Georgia', serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        h1 {
+            margin: 10px 0 5px 0;
+            text-shadow: 2px 2px 4px #000;
+            font-size: 28px;
+            letter-spacing: 2px;
+        }
+
+        .stats {
+            display: flex;
+            gap: 30px;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        #gameCanvas {
+            border: 4px solid #d4af37;
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+            background-color: #000;
+        }
+
+        .instructions {
+            margin-top: 15px;
+            color: #aaa;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        .legend {
+            margin-top: 10px;
+            display: flex;
+            gap: 15px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>PAC-THRONE</h1>
+    <div class="stats">
+        <div>Punti: <span id="score">0</span></div>
+        <div>Vite: <span id="lives">3</span></div>
+    </div>
+
+    <canvas id="gameCanvas" width="380" height="420"></canvas>
+
+    <div class="instructions">
+        Usa le <b>frecce della tastiera</b> per muovere Tyrion 🍷<br>
+        Bevi il <b>Vino d'Arbor 🍷</b> per attivare l'Alto Fuoco 🔥 e sconfiggere i nemici!
+    </div>
+
+    <div class="legend">
+        <span>🦁 Cersei (Rosso)</span>
+        <span>⚔️ La Montagna (Rosa)</span>
+        <span>🐕 Ramsay (Azzurro)</span>
+        <span>👑 Joffrey (Arancione)</span>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const livesEl = document.getElementById('lives');
+
+        const TILE_SIZE = 20;
+        const ROWS = 21;
+        const COLS = 19;
+
+        // 1 = Muro, 0 = Moneta d'oro, 2 = Vino d'Arbor (Power Pellet), 3 = Vuoto
+        const map = [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,2,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,2,1],
+            [1,0,1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,0,1],
+            [1,0,1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,1,1,0,1,0,1,1,1,1,1,0,1,0,1,1,0,1],
+            [1,0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,1],
+            [1,1,1,1,0,1,1,1,3,1,3,1,1,1,0,1,1,1,1],
+            [3,3,3,1,0,1,3,3,3,3,3,3,3,1,0,1,3,3,3],
+            [1,1,1,1,0,1,3,1,1,3,1,1,3,1,0,1,1,1,1],
+            [3,3,3,3,0,3,3,1,3,3,3,1,3,3,0,3,3,3,3],
+            [1,1,1,1,0,1,3,1,1,1,1,1,3,1,0,1,1,1,1],
+            [3,3,3,1,0,1,3,3,3,3,3,3,3,1,0,1,3,3,3],
+            [1,1,1,1,0,1,3,1,1,1,1,1,3,1,0,1,1,1,1],
+            [1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1],
+            [1,0,1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,0,1],
+            [1,2,0,1,0,0,0,0,0,3,0,0,0,0,0,1,0,2,1],
+            [1,1,0,1,0,1,0,1,1,1,1,1,0,1,0,1,0,1,1],
+            [1,0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,1],
+            [1,0,1,1,1,1,1,1,0,1,0,1,1,1,1,1,1,0,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ];
+
+        let currentMap = JSON.parse(JSON.stringify(map));
+        let score = 0;
+        let lives = 3;
+        let wildfireTimer = 0;
+
+        // Player (Tyrion)
+        const player = {
+            x: 9,
+            y: 16,
+            dirX: 0,
+            dirY: 0,
+            nextDirX: 0,
+            nextDirY: 0
+        };
+
+        // Nemici
+        const ghosts = [
+            { name: "Cersei", x: 9, y: 8, color: "#e74c3c", dirX: 1, dirY: 0 },
+            { name: "La Montagna", x: 8, y: 10, color: "#e84393", dirX: -1, dirY: 0 },
+            { name: "Ramsay", x: 9, y: 10, color: "#00cec9", dirX: 0, dirY: -1 },
+            { name: "Joffrey", x: 10, y: 10, color: "#e67e22", dirX: 1, dirY: 0 }
+        ];
+
+        // Input Tastiera
+        window.addEventListener('keydown', e => {
+            switch(e.key) {
+                case 'ArrowUp': player.nextDirX = 0; player.

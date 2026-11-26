@@ -6,7 +6,7 @@ const file = ['costanti', 'labirinti', 'labirinto', 'livelli', 'suoni', 'entita'
 const codice = file.map(f => fs.readFileSync(__dirname + '/' + f + '.js', 'utf8')).join('\n');
 const REL = process.argv[2] === 'relativi';
 const ctx = vm.createContext({ console, Math });
-vm.runInContext(codice.replace('CONTROLLI_RELATIVI = false','CONTROLLI_RELATIVI = ' + REL) + '\nthis.API = { Labirinto, Giocatore, Fantasma, Gioco, LABIRINTI, COLONNE, RIGHE, DIREZIONI, DISTANZA_CONTATTO, DT_MASSIMO, DURATA_POTENZA, PUNTI_FANTASMA, PAUSA_RIENTRO, RITARDI_FANTASMI, DISTANZA_MINIMA_PARTENZA, DURATA_DISPERSIONE, DURATA_CACCIA, parametriLivello, NUMERO_LIVELLI, VELOCITA_MASSIMA_FANTASMA, RITARDO_MINIMO, DURATA_POTENZA_MINIMA, TEMPO_MINIMO_SPECIALE, TEMPO_LIMITE_SPECIALE, PAUSA_LIVELLO, CHIAVE_RECORD, VITE_INIZIALI, ANGOLI, REGNI, MUSICHE, SCALE, semitoni, frequenza, Suoni, EFFETTI_ATTIVI, MODELLI, AMBIENTI, posizioniTorce, Vista3D, DISTANZA_CAMERA, ALTEZZA_CAMERA, CELLA };', ctx);
+vm.runInContext(codice.replace('CONTROLLI_RELATIVI = false','CONTROLLI_RELATIVI = ' + REL) + '\nthis.API = { Labirinto, Giocatore, Fantasma, Gioco, LABIRINTI, COLONNE, RIGHE, DIREZIONI, DISTANZA_CONTATTO, DT_MASSIMO, DURATA_POTENZA, PUNTI_FANTASMA, PAUSA_RIENTRO, RITARDI_FANTASMI, DISTANZA_MINIMA_PARTENZA, DURATA_DISPERSIONE, DURATA_CACCIA, parametriLivello, NUMERO_LIVELLI, VELOCITA_MASSIMA_FANTASMA, RITARDO_MINIMO, DURATA_POTENZA_MINIMA, TEMPO_MINIMO_SPECIALE, TEMPO_LIMITE_SPECIALE, PAUSA_LIVELLO, PAUSA_COMPLETATO, CHIAVE_RECORD, VITE_INIZIALI, ANGOLI, REGNI, MUSICHE, SCALE, semitoni, frequenza, Suoni, EFFETTI_ATTIVI, MODELLI, AMBIENTI, posizioniTorce, Vista3D, DISTANZA_CAMERA, ALTEZZA_CAMERA, CELLA };', ctx);
 const A = ctx.API;
 
 let esiti = [], falliti = 0;
@@ -145,7 +145,7 @@ if (REL) {
   g.aggiorna(1 / 60);
   const perso = g.stato === 'sconfitta';
   g.tasto('invio');
-  prova('Sconfitta a 0 vite e riavvio con INVIO', perso && g.stato === 'pronto' && g.vite === 3);
+  prova('Sconfitta a 0 vite e riavvio con INVIO', perso && g.stato === 'pronto' && g.vite === A.VITE_INIZIALI);
 }
 
 // RF6: potenziamenti
@@ -265,8 +265,9 @@ for (const nome of Object.keys(A.LABIRINTI)) {
 {
   const g = new A.Gioco(); g.nuovaPartita(); g.stato = 'gioco';
   g.giocatore.punti = 700; g.vite = 2; g.lab.cibo.clear(); g.aggiorna(1 / 60);
-  prova('RF7 finito il cibo si passa al livello 2, con punti e vite conservati',
-    g.livello === 2 && g.stato === 'pronto' && g.punti === 700 && g.vite === 2 && g.lab.cibo.size > 0);
+  for (let i = 0; i < 300 && g.stato === 'completato'; i++) g.aggiorna(1 / 60);     // la schermata "livello completato" dura qualche secondo
+  prova('RF7 finito il cibo si passa al livello 2, con i punti conservati e le vite rinnovate',
+    g.livello === 2 && g.stato === 'pronto' && g.punti === 700 && g.vite === A.VITE_INIZIALI && g.lab.cibo.size > 0);
   g.caricaLivello(4); g.stato = 'gioco';
   prova('RF8 il livello 4 ha due tunnel e il tempo limite', g.lab.tunnel.length === 2 && g.tempoRimasto === A.parametriLivello(4).tempoLimite);
   g.tempoRimasto = 0.01; const v = g.vite;
@@ -387,7 +388,9 @@ for (const nome of Object.keys(A.LABIRINTI)) {
 {
   const g = new A.Gioco(); g.nuovaPartita(); g.stato = 'gioco'; g.fantasmi.forEach(x => { x.attesa = 99; }); g.eventi.length = 0;
   g.lab.cibo.clear(); g.aggiorna(1 / 60);
-  prova('Evento "livelloCompletato" e poi "inizioLivello" del successivo', g.eventi.join() === 'livelloCompletato,inizioLivello', g.eventi.join());
+  const primo = g.eventi.join();
+  for (let i = 0; i < 300 && g.stato === 'completato'; i++) g.aggiorna(1 / 60);
+  prova('Evento "livelloCompletato" e poi "inizioLivello" del successivo', primo === 'livelloCompletato' && g.eventi.join() === 'livelloCompletato,inizioLivello', primo + ' / ' + g.eventi.join());
   const h = new A.Gioco(); h.nuovaPartita(8); h.stato = 'gioco'; h.fantasmi.forEach(x => { x.attesa = 99; }); h.eventi.length = 0;
   h.giocatore.velocita = 0; h.lab.cibo.clear(); h.aggiorna(1 / 60);
   const t = h.lab.trono; posiziona(h.giocatore, t.c, t.r, 1); h.aggiorna(1 / 60);
@@ -426,12 +429,119 @@ for (const nome of Object.keys(A.LABIRINTI)) {
   prova('Simulazione casuale di 5 minuti: sempre su celle libere, nessun errore', ok, partite + ' partite finite');
 }
 
+// RF24: il livello parte con tutto fermo, finché non si preme una freccia
+{
+  const g = new A.Gioco(); g.nuovaPartita(); g.fantasmi.forEach(x => { x.attesa = 0; });
+  for (let i = 0; i < 200 && g.stato === 'pronto'; i++) g.aggiorna(1 / 60);
+  const a = g.stato === 'gioco' && g.inAttesaInizio === true;
+  const p0 = g.giocatore.x + ',' + g.giocatore.y, f0 = g.fantasmi.map(f => f.x + ',' + f.y).join(), t0 = g.tempoFase;
+  for (let i = 0; i < 300; i++) g.aggiorna(1 / 60);                      // 5 secondi senza toccare nulla
+  const b = g.giocatore.x + ',' + g.giocatore.y === p0 && g.fantasmi.map(f => f.x + ',' + f.y).join() === f0 && g.tempoFase === t0;
+  g.tasto('su');
+  const c = g.inAttesaInizio === false;
+  for (let i = 0; i < 60; i++) g.aggiorna(1 / 60);
+  const d = g.giocatore.x + ',' + g.giocatore.y !== p0 && g.tempoFase > t0;
+  // una freccia premuta mentre il livello si prepara vale come partenza
+  const h = new A.Gioco(); h.nuovaPartita(); h.tasto('su');
+  for (let i = 0; i < 200 && h.stato === 'pronto'; i++) h.aggiorna(1 / 60);
+  const e = h.stato === 'gioco' && h.inAttesaInizio === false;
+  // dopo una vita persa si riparte fermi
+  const k = new A.Gioco(); k.nuovaPartita(); for (let i = 0; i < 200 && k.stato === 'pronto'; i++) k.aggiorna(1 / 60);
+  k.tasto('su'); k.perdiVita(); for (let i = 0; i < 200 && k.stato === 'pronto'; i++) k.aggiorna(1 / 60);
+  const f = k.stato === 'gioco' && k.inAttesaInizio === true;
+  prova('RF24 il livello (e la ripartenza dopo una vita persa) parte con tutto fermo fino alla prima freccia', a && b && c && d && e && f, [a, b, c, d, e, f].join());
+}
+
+// RF25: in pausa, R (due volte) ricomincia l'intera partita; qualunque altro tasto annulla la richiesta
+{
+  const g = new A.Gioco(); g.nuovaPartita(3); for (let i = 0; i < 200 && g.stato === 'pronto'; i++) g.aggiorna(1 / 60);
+  g.giocatore.punti = 700; g.vite = 1;
+  g.tasto('ricomincia');                                   // fuori pausa non succede nulla
+  const a = g.livello === 3 && g.vite === 1 && g.riavvioChiesto === false;
+  g.tasto('spazio');                                       // pausa
+  g.tasto('ricomincia');                                   // primo R: chiede conferma
+  const b = g.inPausa && g.riavvioChiesto === true && g.livello === 3 && g.giocatore.punti === 700;
+  g.tasto('su');                                           // un altro tasto annulla
+  const c = g.riavvioChiesto === false && g.inPausa;
+  g.tasto('ricomincia'); g.tasto('ricomincia');            // due R: si ricomincia
+  const d = g.livello === 3 && g.vite === A.VITE_INIZIALI && g.giocatore.punti === 0 && g.stato === 'pronto' && !g.inPausa && g.riavvioChiesto === false;
+  g.tasto('spazio'); g.tasto('ricomincia'); g.tasto('spazio');   // riprendere dalla pausa annulla la richiesta
+  const e = g.riavvioChiesto === false && !g.inPausa;
+  prova('RF25 in pausa R (due volte) ricomincia la partita dal livello di partenza; un altro tasto annulla', a && b && c && d && e, [a, b, c, d, e].join());
+}
+
+// RF23: a ogni livello superato le vite tornano al massimo (i punti restano)
+{
+  const g = new A.Gioco(); g.nuovaPartita(); g.stato = 'gioco'; g.fantasmi.forEach(x => { x.attesa = 99; });
+  g.vite = 1; g.giocatore.punti = 500; g.lab.cibo.clear(); g.aggiorna(1 / 60);
+  const a = g.stato === 'completato' && g.vite === A.VITE_INIZIALI && g.viteRinnovate === true && g.punti === 500;
+  const h = new A.Gioco(); h.nuovaPartita(); h.stato = 'gioco'; h.fantasmi.forEach(x => { x.attesa = 99; }); h.lab.cibo.clear(); h.aggiorna(1 / 60);
+  const b = h.vite === A.VITE_INIZIALI && h.viteRinnovate === false;           // se non ne hai perse, non c'è nulla da rinnovare
+  for (let i = 0; i < 300 && g.stato === 'completato'; i++) g.aggiorna(1 / 60);
+  const c = g.livello === 2 && g.vite === A.VITE_INIZIALI;
+  g.stato = 'gioco'; g.perdiVita && g.perdiVita(); 
+  const d = g.vite === A.VITE_INIZIALI - 1;
+  prova('RF23 vite rinnovate a ogni livello superato, punti conservati', a && b && c && d, [a, b, c, d].join());
+}
+
+// RF22: pausa con SPAZIO (tutto fermo, anche il tempo); dopo una vita persa si riparte senza la schermata del livello
+{
+  const g = new A.Gioco(); g.nuovaPartita(4); g.stato = 'gioco'; g.fantasmi.forEach(x => { x.attesa = 0; });
+  for (let i = 0; i < 30; i++) g.aggiorna(1 / 60);
+  g.tasto('spazio');
+  const a = g.inPausa === true;
+  const x0 = g.giocatore.x, y0 = g.giocatore.y, t0 = g.tempoRimasto, f0 = g.fantasmi.map(f => f.x + ',' + f.y).join(), fase0 = g.tempoFase;
+  g.tasto('su'); g.tasto('destra');
+  for (let i = 0; i < 300; i++) g.aggiorna(1 / 60);
+  const b = g.giocatore.x === x0 && g.giocatore.y === y0 && g.tempoRimasto === t0 && g.fantasmi.map(f => f.x + ',' + f.y).join() === f0 && g.tempoFase === fase0;
+  g.tasto('completa'); g.tasto('prova'); g.tasto('prova');
+  const c = g.inPausa && g.stato === 'gioco' && g.lab.cibo.size > 0;          // in pausa non si completa il livello
+  g.tasto('spazio');
+  const d = g.inPausa === false;
+  for (let i = 0; i < 30; i++) g.aggiorna(1 / 60);
+  const e = g.tempoRimasto < t0 && g.tempoFase > fase0;                       // dopo la ripresa il tempo riparte
+  g.tasto('pausa'); g.tasto('invio');
+  const f = g.inPausa === false;                                              // INVIO riprende
+  const m = new A.Gioco();
+  m.tasto('spazio');
+  const h = m.stato === 'pronto' && m.inPausa === false;                      // dal menu SPAZIO vale come INVIO
+  const k = new A.Gioco(); k.nuovaPartita(); k.stato = 'gioco'; k.fantasmi.forEach(x => { x.attesa = 0; x.spaventato = false; }); k.giocatore.punti = 0;
+  k.fantasmi[0].x = k.giocatore.x; k.fantasmi[0].y = k.giocatore.y; k.fantasmi[0].col = k.giocatore.col; k.fantasmi[0].row = k.giocatore.row;
+  k.aggiorna(1 / 60);
+  const l = k.vite === A.VITE_INIZIALI - 1 && k.stato === 'pronto' && k.dopoVita === true;   // vita persa: si riparte, senza schermata
+  for (let i = 0; i < 120 && k.stato === 'pronto'; i++) k.aggiorna(1 / 60);
+  const n = k.stato === 'gioco' && k.attesa <= 0;
+  k.caricaLivello(2);
+  const o = k.dopoVita === false;                                             // un livello nuovo, invece, ha la sua schermata
+  prova('RF22 pausa con SPAZIO (tutto fermo, INVIO riprende) e ripartenza senza schermata dopo una vita persa', a && b && c && d && e && f && h && l && n && o, [a, b, c, d, e, f, h, l, n, o].join());
+}
+
+// RF21: finito un livello compare la schermata "livello completato"; poi (dopo qualche secondo o con INVIO) parte il successivo
+{
+  const g = new A.Gioco(); g.nuovaPartita(); g.stato = 'gioco'; g.fantasmi.forEach(x => { x.attesa = 99; });
+  g.giocatore.punti = 300; g.lab.cibo.clear(); g.aggiorna(1 / 60);
+  const a = g.stato === 'completato' && g.livello === 1;
+  g.tasto('invio');                                                      // subito dopo: INVIO non salta
+  const b = g.stato === 'completato';
+  g.tasto('su'); g.aggiorna(1 / 60);                                     // i comandi di movimento non fanno nulla
+  const c = g.stato === 'completato' && g.punti === 300;
+  for (let i = 0; i < 60; i++) g.aggiorna(1 / 60);                       // dopo un secondo
+  g.tasto('invio');
+  const d = g.stato === 'pronto' && g.livello === 2 && g.punti === 300;
+  const h = new A.Gioco(); h.nuovaPartita(); h.stato = 'gioco'; h.fantasmi.forEach(x => { x.attesa = 99; }); h.lab.cibo.clear(); h.aggiorna(1 / 60);
+  let t = 0; while (h.stato === 'completato' && t < 600) { h.aggiorna(1 / 60); t++; }
+  const e = h.stato === 'pronto' && h.livello === 2 && t / 60 >= A.PAUSA_COMPLETATO - 0.1 && t / 60 <= A.PAUSA_COMPLETATO + 0.2;
+  const k = new A.Gioco(); k.nuovaPartita(8); k.stato = 'gioco'; k.giocatore.velocita = 0; k.fantasmi.forEach(x => { x.attesa = 99; }); k.lab.cibo.clear(); k.aggiorna(1 / 60);
+  const f = k.stato !== 'completato';                                    // nel livello del Trono non c'è la schermata: si apre il Trono
+  prova('RF21 schermata "livello completato": INVIO non salta subito, poi si passa al livello dopo (anche da solo)', a && b && c && d && e && f, [a, b, c, d, e, f].join());
+}
+
 // RF19: ogni regno ha la sua atmosfera; le torce stanno su muri che affacciano su un corridoio
 {
   let ok = true, dettaglio = [];
   for (let n = 1; n <= A.NUMERO_LIVELLI; n++) {
     const tema = A.parametriLivello(n).tema, s = A.AMBIENTI[tema];
-    if (s && s.decor && !['leone', 'deserto', 'castello'].includes(s.decor)) ok = false;
+    if (s && s.decor && !['leone', 'deserto', 'castello', 'nord', 'isole', 'valle', 'tempesta'].includes(s.decor)) ok = false;
     if (!s || !s.nebbia || !s.particelle || s.particelle.conta <= 0 || s.nebbia[1] >= s.nebbia[2] || !s.cima || !s.texture) ok = false;
     const lab = nuovo(A.parametriLivello(n).labirinto);
     const torce = A.posizioniTorce(lab, s ? s.torce : 0);

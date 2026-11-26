@@ -9,6 +9,12 @@ class Gioco {
     this.nuovoRecord = false;
     this.prova = false;          // modalità prova: non si perdono vite e si può aprire subito il Trono
     this.provaUsata = false;     // se è stata usata in questa partita, il record non conta
+    this.viteRinnovate = false;  // true se, finito l'ultimo livello, le vite sono state ripristinate
+    this.inPausa = false;        // gioco in pausa (tasto SPAZIO): tutto fermo
+    this.inAttesaInizio = false; // true = il livello è pronto ma niente si muove finché non si preme una freccia
+    this.partenzaPrenotata = false;  // una freccia premuta mentre il livello si preparava vale come partenza
+    this.dopoVita = false;       // true = si riparte dopo una vita persa (la vista non mostra la schermata del livello)
+    this.riavvioChiesto = false; // true = in pausa è stato premuto R una volta: un secondo R ricomincia la partita
     this.nuovaPartita();
     this.stato = 'menu';
   }
@@ -62,8 +68,13 @@ class Gioco {
     this.troneAperto = false;                  // si apre quando il cibo è finito (ultimo livello)
     this.modoPrecedente = 'dispersione';
     this.attesa = PAUSA_LIVELLO;
+    this.inPausa = false;
+    this.dopoVita = false;
+    this.inAttesaInizio = false;
+    this.partenzaPrenotata = false;
+    this.riavvioChiesto = false;
     this.emetti('inizioLivello');
-    this.stato = 'pronto';                     // menu, pronto, gioco, vittoria, sconfitta
+    this.stato = 'pronto';                     // menu, pronto, gioco, completato, vittoria, sconfitta
   }
 
   get punti() { return this.giocatore.punti; }
@@ -84,23 +95,49 @@ class Gioco {
   tasto(t) {
     if (t === 'prova') {
       this.alternaProva();
+    } else if (t === 'spazio' || t === 'pausa') {      // SPAZIO: pausa e ripresa durante il gioco; altrove vale come INVIO
+      this.riavvioChiesto = false;
+      if (this.stato === 'gioco' || this.stato === 'pronto') this.inPausa = !this.inPausa;
+      else if (t === 'spazio') this.tasto('invio');
+    } else if (t === 'ricomincia') {                    // R: ricomincia l'intera partita (solo in pausa, con conferma: serve premere R due volte)
+      if (this.inPausa) {
+        if (this.riavvioChiesto) this.nuovaPartita(this.livelloPartenza);
+        else this.riavvioChiesto = true;
+      }
+    } else if (this.inPausa) {
+      this.riavvioChiesto = false;                     // qualunque altro tasto annulla la richiesta
+      if (t === 'invio') this.inPausa = false;         // in pausa: INVIO riprende, il resto non fa nulla
     } else if (t === 'completa') {
       if (this.prova && this.stato === 'gioco') this.lab.cibo.clear();   // finito il cibo: si apre il Trono o si passa al livello dopo
     } else if (t === 'invio') {
-      if (this.stato !== 'gioco' && this.stato !== 'pronto') this.nuovaPartita();
+      if (this.stato === 'completato') { if (this.attesa <= PAUSA_COMPLETATO - PAUSA_COMPLETATO_MINIMA) this.caricaLivello(this.livello + 1); }
+      else if (this.stato !== 'gioco' && this.stato !== 'pronto') this.nuovaPartita();
     } else if (this.stato === 'menu' && /^[1-8]$/.test(t)) {
       this.nuovaPartita(Number(t));            // dal menu: tasti 1-8 per partire da un livello
     } else if (this.stato === 'gioco' || this.stato === 'pronto') {
+      if (['su', 'sinistra', 'destra', 'giu'].includes(t)) {          // una freccia fa partire il cavaliere
+        if (this.stato === 'gioco') this.inAttesaInizio = false;
+        else this.partenzaPrenotata = true;
+      }
       this.giocatore.tasto(t);
     }
   }
 
   aggiorna(dtSecondi) {
     const dt = Math.min(dtSecondi, DT_MASSIMO);
+    if (this.inPausa) return;                          // pausa: niente si muove e il tempo non scorre
     if (this.stato === 'pronto') {
       this.attesa -= dt;
-      if (this.attesa <= 0) this.stato = 'gioco';
+      if (this.attesa <= 0) {
+        this.stato = 'gioco';
+        this.inAttesaInizio = !this.partenzaPrenotata;   // parte fermo: tutto aspetta la prima freccia
+        this.partenzaPrenotata = false;
+      }
+    } else if (this.stato === 'completato') {          // schermata "livello completato": poi parte il livello dopo
+      this.attesa -= dt;
+      if (this.attesa <= 0) this.caricaLivello(this.livello + 1);
     } else if (this.stato === 'gioco') {
+      if (this.inAttesaInizio) return;               // cavaliere, fantasmi e tempo restano fermi fino alla prima freccia
       this.giocatore.aggiorna(dt);
       while (this.giocatore.eventi.length > 0) this.emetti(this.giocatore.eventi.shift());
       if (this.giocatore.potenziamentoPreso) {
@@ -155,7 +192,10 @@ class Gioco {
       this.emetti('vittoria');
     } else {
       this.emetti('livelloCompletato');
-      this.caricaLivello(this.livello + 1);
+      this.stato = 'completato';
+      this.viteRinnovate = this.vite < VITE_INIZIALI;   // la schermata lo comunica
+      this.vite = VITE_INIZIALI;                        // a ogni livello superato le vite tornano al massimo
+      this.attesa = PAUSA_COMPLETATO;
     }
   }
 
@@ -171,6 +211,8 @@ class Gioco {
     this.modoPrecedente = 'dispersione';
     this.tempoRimasto = this.parametri.tempoLimite;
     this.attesa = PAUSA_INIZIO;
+    this.dopoVita = true;                      // si riparte subito, senza la schermata del livello
+    this.partenzaPrenotata = false;
     this.stato = 'pronto';
   }
 
